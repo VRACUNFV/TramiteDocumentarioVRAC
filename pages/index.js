@@ -24,25 +24,32 @@ import {
   InputAdornment
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import Pusher from 'pusher-js';
 
 export default function Home() {
-  // Estado para almacenar TODOS los documentos obtenidos desde la API
+  // Estado para todos los documentos
   const [allDocs, setAllDocs] = useState([]);
-  // Estados para el formulario
+  // Formulario
   const [nt, setNt] = useState('');
   const [fechaLlegada, setFechaLlegada] = useState('');
   const [urgente, setUrgente] = useState(false);
   const [atrasado, setAtrasado] = useState(false);
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
-  // Estado para la vista: "pendientes" o "historico"
+
+  // Vista: "pendientes" o "historico"
   const [viewType, setViewType] = useState('pendientes');
-  // Estado para el buscador (por NT)
+  // Buscador
   const [searchQuery, setSearchQuery] = useState('');
-  // Estados para las alertas (Snackbar) y para evitar re-alertar documentos
+
+  // Alertas
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [alertedDocs, setAlertedDocs] = useState([]);
+
+  // Parámetros de horas para alertas
+  const horas24 = 24;
+  const horasLegal = 72;
 
   const responsables = [
     'Karina',
@@ -55,33 +62,54 @@ export default function Home() {
     'Christian'
   ];
 
-  // Parámetros para alertas (horas)
-  const horas24 = 24;
-  const horasLegal = 72;
-
-  // Al montar la página y cada 10 segundos, cargar documentos
+  // 1. Cargar documentos al montar y cada 10s
   useEffect(() => {
     fetchDocumentos();
     const interval = setInterval(() => {
       fetchDocumentos();
     }, 10000);
     return () => clearInterval(interval);
-  }, [viewType]); // También se vuelve a cargar si cambia la vista
+  }, [viewType]);
 
-  // Función para obtener documentos desde la API y guardarlos en "allDocs"
+  // 2. Suscripción a Pusher en tiempo real
+  useEffect(() => {
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+    });
+    const channel = pusher.subscribe('documents-channel');
+
+    channel.bind('new-document', (data) => {
+      // Si el doc no está atendido y la vista es pendientes, agregamos
+      // pero en realidad podemos siempre agregar a allDocs, y el front filtra
+      setAllDocs((prev) => [...prev, data.document]);
+    });
+
+    channel.bind('update-document', (data) => {
+      // Actualizar en allDocs
+      setAllDocs((prev) =>
+        prev.map((doc) => (doc._id === data.document._id ? data.document : doc))
+      );
+    });
+
+    return () => {
+      channel.unbind_all();
+      channel.unsubscribe();
+    };
+  }, [viewType]);
+
+  // 3. Obtener documentos desde la API
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
       setAllDocs(data);
 
-      // Solo se generan alertas en la vista "pendientes"
+      // Solo alertamos en la vista "pendientes"
       if (viewType === 'pendientes') {
         const pendientes = data.filter(doc => !doc.atendido);
         let shouldAlert = false;
         const messages = [];
         pendientes.forEach(doc => {
-          // Si ya se alertó este documento, lo saltamos
           if (alertedDocs.includes(doc._id)) return;
           const fecha = new Date(doc.fechaLlegada);
           const ahora = new Date();
@@ -102,12 +130,10 @@ export default function Home() {
         if (shouldAlert && messages.length > 0) {
           setAlertMessage(messages.join(' | '));
           setAlertOpen(true);
-          // Reproducir sonido
           const audio = document.getElementById('alert-audio');
           if (audio) {
             audio.play().catch(err => console.error('Error al reproducir audio:', err));
           }
-          // Registrar estos documentos para no volver a alertar
           const nuevosAlertados = pendientes
             .filter(doc => !alertedDocs.includes(doc._id))
             .map(doc => doc._id);
@@ -121,7 +147,7 @@ export default function Home() {
     }
   }
 
-  // Función para crear un nuevo documento (POST)
+  // 4. Crear documento (POST)
   async function crearDocumento(e) {
     e.preventDefault();
     const nuevoDoc = { nt, fechaLlegada, urgente, atrasado, responsable, atendido };
@@ -129,7 +155,7 @@ export default function Home() {
       const res = await fetch('/api/documentos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nuevoDoc)
+        body: JSON.stringify(nuevoDoc),
       });
       await res.json();
       // Limpiar formulario
@@ -139,27 +165,29 @@ export default function Home() {
       setAtrasado(false);
       setResponsable('Karina');
       setAtendido(false);
+      // Se actualiza la lista (aunque con Pusher, se reflejará igual, pero es útil)
       fetchDocumentos();
     } catch (error) {
       console.error('Error al crear documento:', error);
     }
   }
 
-  // Función para actualizar un documento (PUT)
+  // 5. Actualizar documento (PUT)
   async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
+        body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido }),
       });
+      // Se recarga la lista. Pusher también disparará un evento "update-document"
       fetchDocumentos();
     } catch (error) {
       console.error('Error al actualizar documento:', error);
     }
   }
 
-  // Filtrar documentos para la vista actual y búsqueda
+  // 6. Filtrar documentos según la vista y la búsqueda
   const filteredDocs = allDocs.filter(doc => {
     const matchesView = viewType === 'pendientes' ? !doc.atendido : doc.atendido;
     const matchesSearch = doc.nt.toLowerCase().includes(searchQuery.toLowerCase());
@@ -168,10 +196,10 @@ export default function Home() {
 
   return (
     <>
-      {/* Elemento de audio para alertas */}
+      {/* Audio para alertas */}
       <audio id="alert-audio" src="/alert.mp3" preload="auto" />
 
-      {/* Snackbar para notificaciones */}
+      {/* Snackbar de alertas */}
       <Snackbar
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
@@ -195,21 +223,23 @@ export default function Home() {
       </AppBar>
 
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        {/* Botón para cambiar la vista */}
+        {/* Vista: Pendientes o Histórico */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5">Documentos</Typography>
           <ToggleButtonGroup
             color="primary"
             value={viewType}
             exclusive
-            onChange={(e, newView) => newView && setViewType(newView)}
+            onChange={(e, newView) => {
+              if (newView) setViewType(newView);
+            }}
           >
             <ToggleButton value="pendientes">Pendientes</ToggleButton>
             <ToggleButton value="historico">Histórico</ToggleButton>
           </ToggleButtonGroup>
         </Box>
 
-        {/* Buscador */}
+        {/* Buscador por NT */}
         <TextField
           placeholder="Buscar por NT..."
           value={searchQuery}
@@ -221,7 +251,7 @@ export default function Home() {
               <InputAdornment position="start">
                 <SearchIcon />
               </InputAdornment>
-            )
+            ),
           }}
         />
 
@@ -278,7 +308,7 @@ export default function Home() {
           </Table>
         </Paper>
 
-        {/* Formulario para crear documentos */}
+        {/* Formulario para crear un nuevo documento */}
         <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom>
             Registrar Documento
@@ -300,11 +330,21 @@ export default function Home() {
               onChange={(e) => setFechaLlegada(e.target.value)}
             />
             <FormControlLabel
-              control={<Checkbox checked={urgente} onChange={(e) => setUrgente(e.target.checked)} />}
+              control={
+                <Checkbox
+                  checked={urgente}
+                  onChange={(e) => setUrgente(e.target.checked)}
+                />
+              }
               label="¿Urgente?"
             />
             <FormControlLabel
-              control={<Checkbox checked={atrasado} onChange={(e) => setAtrasado(e.target.checked)} />}
+              control={
+                <Checkbox
+                  checked={atrasado}
+                  onChange={(e) => setAtrasado(e.target.checked)}
+                />
+              }
               label="¿Atrasado?"
             />
             <Typography>Responsable</Typography>
@@ -319,7 +359,12 @@ export default function Home() {
               ))}
             </Select>
             <FormControlLabel
-              control={<Checkbox checked={atendido} onChange={(e) => setAtendido(e.target.checked)} />}
+              control={
+                <Checkbox
+                  checked={atendido}
+                  onChange={(e) => setAtendido(e.target.checked)}
+                />
+              }
               label="¿Atendido?"
             />
             <Button variant="contained" type="submit" color="primary">
