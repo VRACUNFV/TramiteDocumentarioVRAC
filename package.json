@@ -14,6 +14,7 @@
     "@mui/material": "latest",
     "@emotion/react": "latest",
     "@emotion/styled": "latest",
-    "@mui/icons-material": "latest"
+    "@mui/icons-material": "latest",
+    "next-auth": "latest"
   }
 }
