@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Container, Typography, Button, Paper, Table, TableHead, TableRow, TableCell, TableBody } from '@mui/material';
 import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
 export default function Reportes() {
   const [documentos, setDocumentos] = useState([]);
@@ -31,23 +32,34 @@ export default function Reportes() {
     }
   }
 
-  function exportPDF() {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("Reporte de Documentos", 10, 20);
-    doc.setFontSize(12);
-    let y = 30;
-    documentos.forEach((d, index) => {
-      const text = `Documento ${index + 1}: NT: ${d.nt}, Fecha: ${d.fechaLlegada}, Urgente: ${d.urgente ? 'Sí' : 'No'}, Atrasado: ${d.atrasado ? 'Sí' : 'No'}, Responsable: ${d.responsable}, Atendido: ${d.atendido ? 'Sí' : 'No'}`;
-      doc.text(text, 10, y);
-      y += 10;
-      if (y > 280) {
-        doc.addPage();
-        y = 20;
-      }
-    });
-    doc.save("reporte_documentos.pdf");
-  }
+function exportPDF(documentos) {
+  const doc = new jsPDF();
+  doc.setFontSize(16);
+  doc.text("Reporte de Documentos", 14, 20);
+
+  // Define las columnas de la tabla
+  const tableColumn = ["NT", "Fecha de Llegada", "Urgente", "Atrasado", "Responsable", "Atendido"];
+  // Prepara las filas a partir de los documentos
+  const tableRows = documentos.map((d) => [
+    d.nt,
+    d.fechaLlegada,
+    d.urgente ? "Sí" : "No",
+    d.atrasado ? "Sí" : "No",
+    d.responsable,
+    d.atendido ? "Sí" : "No"
+  ]);
+
+  // Agrega la tabla al PDF
+  doc.autoTable({
+    head: [tableColumn],
+    body: tableRows,
+    startY: 30,
+    styles: { fontSize: 10 },
+    headStyles: { fillColor: [128, 0, 0] }
+  });
+
+  doc.save("reporte_documentos.pdf");
+}
 
   return (
     <Container maxWidth="md" sx={{ mt: 4 }}>
