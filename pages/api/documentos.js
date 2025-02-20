@@ -25,10 +25,34 @@ export default async function handler(req, res) {
     try {
       const result = await collection.insertOne(req.body);
       // result.ops[0] es la forma de obtener el documento insertado en algunas versiones,
-      // si no funciona, puedes enviar el objeto result o consultar la documentación del driver
+      // si no funciona, se retorna result directamente
       return res.status(201).json(result.ops ? result.ops[0] : result);
     } catch (error) {
       return res.status(400).json({ message: 'Error al crear documento', error });
+    }
+  }
+
+  if (req.method === 'PUT') {
+    const { id } = req.query; // Se espera que el id sea pasado como query param
+    try {
+      // Convertir el id a ObjectId
+      const { ObjectId } = require('mongodb');
+      const _id = new ObjectId(id);
+
+      const { responsable, atendido } = req.body;
+
+      const updated = await collection.findOneAndUpdate(
+        { _id },
+        { $set: { responsable, atendido } },
+        { returnDocument: 'after' } // Retorna el documento después de la actualización
+      );
+
+      if (!updated.value) {
+        return res.status(404).json({ message: 'Documento no encontrado' });
+      }
+      return res.status(200).json(updated.value);
+    } catch (error) {
+      return res.status(400).json({ message: 'Error al actualizar documento', error });
     }
   }
 
