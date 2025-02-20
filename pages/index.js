@@ -21,6 +21,14 @@ import {
   Snackbar
 } from '@mui/material';
 
+/**
+ * CONFIGURA AQUÍ TUS TIEMPOS:
+ *  - horas24: tiempo para la alerta de 24 horas
+ *  - horasLegal: tiempo máximo según ley (ej. 72 horas)
+ */
+const horas24 = 24;
+const horasLegal = 72;
+
 export default function Home() {
   const [documentos, setDocumentos] = useState([]);
   const [nt, setNt] = useState('');
@@ -30,11 +38,12 @@ export default function Home() {
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
 
-  // Para las alertas
+  // Para las alertas (Snackbar)
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  // Para evitar re-alertar el mismo documento varias veces
+  const [alertedDocs, setAlertedDocs] = useState([]);
 
-  // Lista de responsables
   const responsables = [
     'Karina',
     'Jessica',
@@ -46,12 +55,12 @@ export default function Home() {
     'Christian'
   ];
 
-  // Cargar documentos al montar la página
+  // Al montar, cargamos documentos
   useEffect(() => {
     fetchDocumentos();
   }, []);
 
-  // Polling: se vuelve a consultar cada 10 segundos
+  // Refresco cada 10 segundos
   useEffect(() => {
     const interval = setInterval(() => {
       fetchDocumentos();
@@ -59,23 +68,73 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  /**
+   * Obtiene todos los documentos y filtra los "atendidos".
+   * Además, genera alertas si:
+   *   - Hay documentos urgentes no atendidos
+   *   - Han pasado 24h
+   *   - Han pasado 72h (o el tiempo legal)
+   */
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
-      // Filtra los documentos que no estén atendidos
+
+      // Filtra NO atendidos
       const noAtendidos = data.filter((doc) => !doc.atendido);
       setDocumentos(noAtendidos);
-      // Si hay alguno urgente, se abre la alerta
-      if (noAtendidos.some(doc => doc.urgente)) {
-        setAlertMessage('¡Alerta! Hay documentos urgentes.');
+
+      // Lógica de alertas
+      const messages = [];
+      let shouldAlert = false;
+
+      noAtendidos.forEach((doc) => {
+        // Verificamos si ya alertamos por este doc
+        if (alertedDocs.includes(doc._id)) return;
+
+        // Calcular horas transcurridas desde fechaLlegada
+        const fecha = new Date(doc.fechaLlegada);
+        const ahora = new Date();
+        const horasDiff = (ahora - fecha) / (1000 * 60 * 60);
+
+        // 1. Si es urgente
+        if (doc.urgente) {
+          messages.push(`Documento ${doc.nt} es Urgente.`);
+          shouldAlert = true;
+        }
+
+        // 2. Si pasan 24h sin atender
+        if (horasDiff > horas24) {
+          messages.push(`Documento ${doc.nt} lleva más de 24h sin atención.`);
+          shouldAlert = true;
+        }
+
+        // 3. Si excede el límite legal
+        if (horasDiff > horasLegal) {
+          messages.push(`Documento ${doc.nt} excede el límite legal (${horasLegal}h).`);
+          shouldAlert = true;
+        }
+      });
+
+      if (shouldAlert && messages.length > 0) {
+        // Unimos mensajes en una sola notificación
+        setAlertMessage(messages.join(' | '));
         setAlertOpen(true);
-        // Reproduce el sonido de alerta
+
+        // Reproducir sonido
         const audio = document.getElementById('alert-audio');
         if (audio) {
-          audio.play().catch(err => console.error('Error al reproducir el audio:', err));
+          audio.play().catch((err) => console.error('Error al reproducir audio:', err));
         }
+
+        // Marcamos estos docs como alertados para no repetir
+        const newAlertedDocs = noAtendidos
+          .filter((doc) => !alertedDocs.includes(doc._id))
+          .map((doc) => doc._id);
+
+        setAlertedDocs((prev) => [...prev, ...newAlertedDocs]);
       } else {
+        // Si no hay alertas nuevas, cerramos el Snackbar
         setAlertOpen(false);
       }
     } catch (error) {
@@ -83,6 +142,7 @@ export default function Home() {
     }
   }
 
+  // Crear documento (POST)
   async function crearDocumento(e) {
     e.preventDefault();
     const nuevoDoc = {
@@ -102,7 +162,7 @@ export default function Home() {
       });
       await res.json();
 
-      // Limpiar formulario
+      // Limpia el formulario
       setNt('');
       setFechaLlegada('');
       setUrgente(false);
@@ -110,13 +170,14 @@ export default function Home() {
       setResponsable('Karina');
       setAtendido(false);
 
-      // Recargar lista
+      // Recarga
       fetchDocumentos();
     } catch (error) {
       console.error('Error al crear documento:', error);
     }
   }
 
+  // Actualizar (PUT). Si "atendido" => lo quitamos de la lista
   async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
@@ -125,7 +186,6 @@ export default function Home() {
         body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
       });
       if (nuevoAtendido) {
-        // Remueve el documento de la lista si se marca como atendido
         setDocumentos((prev) => prev.filter((doc) => doc._id !== id));
       } else {
         fetchDocumentos();
@@ -137,10 +197,10 @@ export default function Home() {
 
   return (
     <>
-      {/* Elemento de audio para reproducir el sonido de alerta */}
+      {/* Audio para alertas */}
       <audio id="alert-audio" src="/alert.mp3" preload="auto" />
 
-      {/* Notificación emergente con Snackbar */}
+      {/* Snackbar para mostrar alertas */}
       <Snackbar
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
@@ -150,7 +210,7 @@ export default function Home() {
 
       <AppBar position="static">
         <Toolbar>
-          {/* Logo VRAC: asegúrate de que "vrac-logo.png" esté en public/ */}
+          {/* Logo VRAC */}
           <Box
             component="img"
             src="/vrac-logo.png"
@@ -164,7 +224,7 @@ export default function Home() {
       </AppBar>
 
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        {/* Formulario para crear documentos */}
+        {/* Formulario */}
         <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom>
             Registrar Documento
