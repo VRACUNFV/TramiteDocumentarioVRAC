@@ -1,3 +1,4 @@
+// pages/_app.js
 import * as React from 'react';
 import Head from 'next/head';
 import { ThemeProvider } from '@mui/material/styles';
@@ -12,7 +13,6 @@ export default function MyApp({ Component, pageProps }) {
         <meta name="viewport" content="initial-scale=1, width=device-width" />
       </Head>
       <ThemeProvider theme={theme}>
-        {/* CssBaseline normaliza estilos por defecto */}
         <CssBaseline />
         <Component {...pageProps} />
       </ThemeProvider>
