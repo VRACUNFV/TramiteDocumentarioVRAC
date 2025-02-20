@@ -26,7 +26,7 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 
 export default function Home() {
-  // Estado para almacenar TODOS los documentos
+  // Estado para almacenar TODOS los documentos obtenidos desde la API
   const [allDocs, setAllDocs] = useState([]);
   // Estados para el formulario
   const [nt, setNt] = useState('');
@@ -35,18 +35,15 @@ export default function Home() {
   const [atrasado, setAtrasado] = useState(false);
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
-  
-  // Vista: "pendientes" (documentos no atendidos) o "historico" (atendidos)
+  // Estado para la vista: "pendientes" o "historico"
   const [viewType, setViewType] = useState('pendientes');
-  // Buscador por NT
+  // Estado para el buscador (por NT)
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Alertas
+  // Estados para las alertas (Snackbar) y para evitar re-alertar documentos
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
-  // Evitar re-alertar el mismo documento
   const [alertedDocs, setAlertedDocs] = useState([]);
-  
+
   const responsables = [
     'Karina',
     'Jessica',
@@ -57,28 +54,28 @@ export default function Home() {
     'David',
     'Christian'
   ];
-  
-  // Parámetros de tiempo para alertas (en horas)
+
+  // Parámetros para alertas (horas)
   const horas24 = 24;
   const horasLegal = 72;
-  
-  // Al montar y cada 10 segundos, cargar documentos
+
+  // Al montar la página y cada 10 segundos, cargar documentos
   useEffect(() => {
     fetchDocumentos();
     const interval = setInterval(() => {
       fetchDocumentos();
     }, 10000);
     return () => clearInterval(interval);
-  }, []);
-  
-  // Obtiene documentos desde la API y los guarda en "allDocs"
+  }, [viewType]); // También se vuelve a cargar si cambia la vista
+
+  // Función para obtener documentos desde la API y guardarlos en "allDocs"
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
       setAllDocs(data);
-      
-      // Solo aplicamos alertas en la vista pendientes
+
+      // Solo se generan alertas en la vista "pendientes"
       if (viewType === 'pendientes') {
         const pendientes = data.filter(doc => !doc.atendido);
         let shouldAlert = false;
@@ -110,7 +107,7 @@ export default function Home() {
           if (audio) {
             audio.play().catch(err => console.error('Error al reproducir audio:', err));
           }
-          // Marcar documentos alertados
+          // Registrar estos documentos para no volver a alertar
           const nuevosAlertados = pendientes
             .filter(doc => !alertedDocs.includes(doc._id))
             .map(doc => doc._id);
@@ -123,8 +120,8 @@ export default function Home() {
       console.error('Error al obtener documentos:', error);
     }
   }
-  
-  // Función para crear un nuevo documento
+
+  // Función para crear un nuevo documento (POST)
   async function crearDocumento(e) {
     e.preventDefault();
     const nuevoDoc = { nt, fechaLlegada, urgente, atrasado, responsable, atendido };
@@ -147,7 +144,7 @@ export default function Home() {
       console.error('Error al crear documento:', error);
     }
   }
-  
+
   // Función para actualizar un documento (PUT)
   async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
     try {
@@ -161,33 +158,44 @@ export default function Home() {
       console.error('Error al actualizar documento:', error);
     }
   }
-  
-  // Filtrar documentos según vista y búsqueda
+
+  // Filtrar documentos para la vista actual y búsqueda
   const filteredDocs = allDocs.filter(doc => {
     const matchesView = viewType === 'pendientes' ? !doc.atendido : doc.atendido;
     const matchesSearch = doc.nt.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesView && matchesSearch;
   });
-  
+
   return (
     <>
-      {/* Audio para alertas */}
+      {/* Elemento de audio para alertas */}
       <audio id="alert-audio" src="/alert.mp3" preload="auto" />
-      {/* Snackbar para alertas */}
-      <Snackbar open={alertOpen} onClose={() => setAlertOpen(false)} message={alertMessage} autoHideDuration={6000} />
-      
+
+      {/* Snackbar para notificaciones */}
+      <Snackbar
+        open={alertOpen}
+        onClose={() => setAlertOpen(false)}
+        message={alertMessage}
+        autoHideDuration={6000}
+      />
+
+      {/* AppBar con logo */}
       <AppBar position="static">
         <Toolbar>
-          {/* Logo VRAC */}
-          <Box component="img" src="/vrac-logo.png" alt="VRAC Logo" sx={{ height: 50, mr: 2 }} />
+          <Box
+            component="img"
+            src="/vrac-logo.png"
+            alt="VRAC Logo"
+            sx={{ height: 50, mr: 2 }}
+          />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Sistema de Alertas VRAC
           </Typography>
         </Toolbar>
       </AppBar>
-      
+
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        {/* Botón para cambiar la vista: Pendientes vs Histórico */}
+        {/* Botón para cambiar la vista */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5">Documentos</Typography>
           <ToggleButtonGroup
@@ -200,7 +208,7 @@ export default function Home() {
             <ToggleButton value="historico">Histórico</ToggleButton>
           </ToggleButtonGroup>
         </Box>
-        
+
         {/* Buscador */}
         <TextField
           placeholder="Buscar por NT..."
@@ -213,10 +221,11 @@ export default function Home() {
               <InputAdornment position="start">
                 <SearchIcon />
               </InputAdornment>
-            ),
+            )
           }}
         />
-        
+
+        {/* Tabla de documentos */}
         <Paper sx={{ mb: 4, p: 2 }}>
           <Table>
             <TableHead>
@@ -268,7 +277,7 @@ export default function Home() {
             </TableBody>
           </Table>
         </Paper>
-        
+
         {/* Formulario para crear documentos */}
         <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom>
@@ -291,21 +300,11 @@ export default function Home() {
               onChange={(e) => setFechaLlegada(e.target.value)}
             />
             <FormControlLabel
-              control={
-                <Checkbox
-                  checked={urgente}
-                  onChange={(e) => setUrgente(e.target.checked)}
-                />
-              }
+              control={<Checkbox checked={urgente} onChange={(e) => setUrgente(e.target.checked)} />}
               label="¿Urgente?"
             />
             <FormControlLabel
-              control={
-                <Checkbox
-                  checked={atrasado}
-                  onChange={(e) => setAtrasado(e.target.checked)}
-                />
-              }
+              control={<Checkbox checked={atrasado} onChange={(e) => setAtrasado(e.target.checked)} />}
               label="¿Atrasado?"
             />
             <Typography>Responsable</Typography>
@@ -314,4 +313,21 @@ export default function Home() {
               onChange={(e) => setResponsable(e.target.value)}
             >
               {responsables.map(r => (
-                <M
+                <MenuItem key={r} value={r}>
+                  {r}
+                </MenuItem>
+              ))}
+            </Select>
+            <FormControlLabel
+              control={<Checkbox checked={atendido} onChange={(e) => setAtendido(e.target.checked)} />}
+              label="¿Atendido?"
+            />
+            <Button variant="contained" type="submit" color="primary">
+              CREAR
+            </Button>
+          </Stack>
+        </Box>
+      </Container>
+    </>
+  );
+}
