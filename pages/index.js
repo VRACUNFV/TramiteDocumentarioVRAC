@@ -1,26 +1,25 @@
+// pages/index.js
 import { useState, useEffect } from 'react';
-
-// Importación de componentes de Material UI
-import AppBar from '@mui/material/AppBar';
-import Toolbar from '@mui/material/Toolbar';
-import Container from '@mui/material/Container';
-import Typography from '@mui/material/Typography';
-import Box from '@mui/material/Box';
-import TextField from '@mui/material/TextField';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Checkbox from '@mui/material/Checkbox';
-import Button from '@mui/material/Button';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
-import Table from '@mui/material/Table';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import TableCell from '@mui/material/TableCell';
-import TableBody from '@mui/material/TableBody';
-import Paper from '@mui/material/Paper';
-import Stack from '@mui/material/Stack';
-import IconButton from '@mui/material/IconButton';
-import WarningIcon from '@mui/icons-material/Warning';
+import {
+  AppBar,
+  Toolbar,
+  Container,
+  Typography,
+  Box,
+  TextField,
+  FormControlLabel,
+  Checkbox,
+  Button,
+  Select,
+  MenuItem,
+  Table,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableBody,
+  Paper,
+  Stack
+} from '@mui/material';
 
 export default function Home() {
   const [documentos, setDocumentos] = useState([]);
@@ -31,6 +30,7 @@ export default function Home() {
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
 
+  // Responsables disponibles
   const responsables = [
     'Karina',
     'Jessica',
@@ -39,24 +39,28 @@ export default function Home() {
     'Fabiola',
     'Romina',
     'David',
-    'Christian',
+    'Christian'
   ];
 
-  // Cargar documentos al iniciar la página
+  // Cargar documentos al montar
   useEffect(() => {
     fetchDocumentos();
   }, []);
 
+  // Obtiene TODOS y filtra "atendidos" en el front
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
-      setDocumentos(data);
+      // Filtramos para no mostrar los atendidos
+      const noAtendidos = data.filter((doc) => !doc.atendido);
+      setDocumentos(noAtendidos);
     } catch (error) {
       console.error('Error al obtener documentos:', error);
     }
   }
 
+  // Crear nuevo doc (POST)
   async function crearDocumento(e) {
     e.preventDefault();
     const nuevoDoc = {
@@ -65,18 +69,18 @@ export default function Home() {
       urgente,
       atrasado,
       responsable,
-      atendido,
+      atendido
     };
 
     try {
       const res = await fetch('/api/documentos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nuevoDoc),
+        body: JSON.stringify(nuevoDoc)
       });
       await res.json();
 
-      // Limpiar el formulario
+      // Limpiar formulario
       setNt('');
       setFechaLlegada('');
       setUrgente(false);
@@ -84,24 +88,28 @@ export default function Home() {
       setResponsable('Karina');
       setAtendido(false);
 
-      // Recargar la lista
+      // Recargar
       fetchDocumentos();
     } catch (error) {
       console.error('Error al crear documento:', error);
     }
   }
 
+  // Actualizar doc (PUT). Si "atendido" => desaparece de la lista
   async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          responsable: nuevoResponsable,
-          atendido: nuevoAtendido,
-        }),
+        body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
       });
-      fetchDocumentos();
+      if (nuevoAtendido) {
+        // Quita localmente el doc
+        setDocumentos((prev) => prev.filter((doc) => doc._id !== id));
+      } else {
+        // Si lo desmarcas (raro), recargamos
+        fetchDocumentos();
+      }
     } catch (error) {
       console.error('Error al actualizar documento:', error);
     }
@@ -109,21 +117,11 @@ export default function Home() {
 
   return (
     <>
-      {/* Encabezado */}
       <AppBar position="static">
         <Toolbar>
-          <Box
-            component="img"
-            src="/vrac-logo.png"
-            alt="VRAC Logo"
-            sx={{ height: 50, mr: 2 }}
-          />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Sistema de Alertas VRAC
           </Typography>
-          <IconButton color="inherit">
-            <WarningIcon />
-          </IconButton>
         </Toolbar>
       </AppBar>
 
@@ -187,15 +185,14 @@ export default function Home() {
               }
               label="¿Atendido?"
             />
-            <Button variant="contained" type="submit">
-              Crear
+            <Button variant="contained" type="submit" color="primary">
+              CREAR
             </Button>
           </Stack>
         </Box>
 
-        {/* Tabla de documentos */}
         <Typography variant="h5" gutterBottom>
-          Lista de Documentos
+          Lista de Documentos (No Atendidos)
         </Typography>
         <Paper>
           <Table>
@@ -216,14 +213,14 @@ export default function Home() {
                   <TableCell>{doc.fechaLlegada}</TableCell>
                   <TableCell
                     sx={{
-                      backgroundColor: doc.urgente ? '#ffcccc' : 'transparent',
+                      backgroundColor: doc.urgente ? '#ffcccc' : 'transparent'
                     }}
                   >
                     {doc.urgente ? 'Sí' : 'No'}
                   </TableCell>
                   <TableCell
                     sx={{
-                      backgroundColor: doc.atrasado ? '#ffe0b3' : 'transparent',
+                      backgroundColor: doc.atrasado ? '#ffe0b3' : 'transparent'
                     }}
                   >
                     {doc.atrasado ? 'Sí' : 'No'}
