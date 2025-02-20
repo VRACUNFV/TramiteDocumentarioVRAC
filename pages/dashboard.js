@@ -1,62 +1,55 @@
-// pages/dashboard.js
 import { useState, useEffect } from 'react';
 import { Container, Typography, Paper } from '@mui/material';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({
-    total: 0,
-    atendidos: 0,
-    pendientes: 0,
-    urgentes: 0,
-    atrasados: 0,
-  });
+  const [documentos, setDocumentos] = useState([]);
 
   useEffect(() => {
-    fetchData();
+    fetchDocumentos();
   }, []);
 
-  async function fetchData() {
+  async function fetchDocumentos() {
     try {
-      // Obtiene todos los documentos (sin filtrar en la API)
       const res = await fetch('/api/documentos');
-      const docs = await res.json();
-      const total = docs.length;
-      const atendidos = docs.filter((doc) => doc.atendido).length;
-      const pendientes = total - atendidos;
-      // Calcula urgentes y atrasados, considerando solo los pendientes
-      const urgentes = docs.filter((doc) => doc.urgente && !doc.atendido).length;
-      const atrasados = docs.filter((doc) => doc.atrasado && !doc.atendido).length;
-      setStats({ total, atendidos, pendientes, urgentes, atrasados });
+      const data = await res.json();
+      setDocumentos(data);
     } catch (error) {
-      console.error('Error al obtener datos para el dashboard:', error);
+      console.error('Error al obtener documentos:', error);
     }
   }
 
-  // Prepara los datos para el gráfico
+  // Calcular estadísticas
+  const total = documentos.length;
+  const atendidos = documentos.filter(doc => doc.atendido).length;
+  const pendientes = total - atendidos;
+  const urgentes = documentos.filter(doc => doc.urgente && !doc.atendido).length;
+  const atrasados = documentos.filter(doc => doc.atrasado && !doc.atendido).length;
+
   const chartData = [
-    { name: 'Total', value: stats.total },
-    { name: 'Atendidos', value: stats.atendidos },
-    { name: 'Pendientes', value: stats.pendientes },
-    { name: 'Urgentes', value: stats.urgentes },
-    { name: 'Atrasados', value: stats.atrasados },
+    { name: 'Total', value: total },
+    { name: 'Atendidos', value: atendidos },
+    { name: 'Pendientes', value: pendientes },
+    { name: 'Urgentes', value: urgentes },
+    { name: 'Atrasados', value: atrasados }
   ];
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: 4 }}>
       <Typography variant="h4" gutterBottom>
         Dashboard de Documentos
       </Typography>
-      <Paper sx={{ padding: 2 }}>
+      <Paper sx={{ p: 2, mb: 4 }}>
+        <Typography variant="h6">Estadísticas Generales</Typography>
+        <Typography>Total Documentos: {total}</Typography>
+        <Typography>Atendidos: {atendidos}</Typography>
+        <Typography>Pendientes: {pendientes}</Typography>
+        <Typography>Urgentes: {urgentes}</Typography>
+        <Typography>Atrasados: {atrasados}</Typography>
+      </Paper>
+      <Paper sx={{ p: 2 }}>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
