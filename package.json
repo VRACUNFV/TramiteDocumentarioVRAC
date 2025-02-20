@@ -18,6 +18,7 @@
     "recharts": "latest",
     "pusher": "latest",
     "pusher-js": "latest",
-    "jspdf": "latest"
+    "jspdf": "latest",
+    "jspdf-autotable": "latest"
   }
 }
