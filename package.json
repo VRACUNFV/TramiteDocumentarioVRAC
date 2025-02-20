@@ -15,6 +15,7 @@
     "@emotion/react": "latest",
     "@emotion/styled": "latest",
     "@mui/icons-material": "latest",
+    "recharts": "latest",
     "pusher": "latest",
     "pusher-js": "latest"
   }
