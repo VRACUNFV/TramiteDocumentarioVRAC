@@ -18,23 +18,35 @@ import {
   TableBody,
   Paper,
   Stack,
-  Snackbar
+  Snackbar,
+  ToggleButton,
+  ToggleButtonGroup,
+  InputAdornment
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 
 export default function Home() {
-  const [documentos, setDocumentos] = useState([]);
+  // Estado para almacenar TODOS los documentos
+  const [allDocs, setAllDocs] = useState([]);
+  // Estados para el formulario
   const [nt, setNt] = useState('');
   const [fechaLlegada, setFechaLlegada] = useState('');
   const [urgente, setUrgente] = useState(false);
   const [atrasado, setAtrasado] = useState(false);
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
-
-  // Para alertas (Snackbar y sonido)
+  
+  // Vista: "pendientes" (documentos no atendidos) o "historico" (atendidos)
+  const [viewType, setViewType] = useState('pendientes');
+  // Buscador por NT
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Alertas
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  // Evitar re-alertar el mismo documento
   const [alertedDocs, setAlertedDocs] = useState([]);
-
+  
   const responsables = [
     'Karina',
     'Jessica',
@@ -45,12 +57,12 @@ export default function Home() {
     'David',
     'Christian'
   ];
-
-  // Parámetros para alertas (horas)
+  
+  // Parámetros de tiempo para alertas (en horas)
   const horas24 = 24;
   const horasLegal = 72;
-
-  // Cargar documentos al montar y cada 10s
+  
+  // Al montar y cada 10 segundos, cargar documentos
   useEffect(() => {
     fetchDocumentos();
     const interval = setInterval(() => {
@@ -58,69 +70,64 @@ export default function Home() {
     }, 10000);
     return () => clearInterval(interval);
   }, []);
-
+  
+  // Obtiene documentos desde la API y los guarda en "allDocs"
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
-      // Filtramos documentos no atendidos
-      const noAtendidos = data.filter((doc) => !doc.atendido);
-      setDocumentos(noAtendidos);
-
-      // Lógica de alertas para documentos urgentes, >24h o >72h sin atender
-      let shouldAlert = false;
-      const messages = [];
-      noAtendidos.forEach((doc) => {
-        if (alertedDocs.includes(doc._id)) return;
-
-        const fecha = new Date(doc.fechaLlegada);
-        const ahora = new Date();
-        const horasDiff = (ahora - fecha) / (1000 * 60 * 60);
-
-        if (doc.urgente) {
-          messages.push(`El documento ${doc.nt} es urgente.`);
-          shouldAlert = true;
+      setAllDocs(data);
+      
+      // Solo aplicamos alertas en la vista pendientes
+      if (viewType === 'pendientes') {
+        const pendientes = data.filter(doc => !doc.atendido);
+        let shouldAlert = false;
+        const messages = [];
+        pendientes.forEach(doc => {
+          // Si ya se alertó este documento, lo saltamos
+          if (alertedDocs.includes(doc._id)) return;
+          const fecha = new Date(doc.fechaLlegada);
+          const ahora = new Date();
+          const diffHours = (ahora - fecha) / (1000 * 60 * 60);
+          if (doc.urgente) {
+            messages.push(`El documento ${doc.nt} es urgente.`);
+            shouldAlert = true;
+          }
+          if (diffHours > horas24) {
+            messages.push(`El documento ${doc.nt} lleva más de 24h sin atender.`);
+            shouldAlert = true;
+          }
+          if (diffHours > horasLegal) {
+            messages.push(`El documento ${doc.nt} excede el límite legal (${horasLegal}h).`);
+            shouldAlert = true;
+          }
+        });
+        if (shouldAlert && messages.length > 0) {
+          setAlertMessage(messages.join(' | '));
+          setAlertOpen(true);
+          // Reproducir sonido
+          const audio = document.getElementById('alert-audio');
+          if (audio) {
+            audio.play().catch(err => console.error('Error al reproducir audio:', err));
+          }
+          // Marcar documentos alertados
+          const nuevosAlertados = pendientes
+            .filter(doc => !alertedDocs.includes(doc._id))
+            .map(doc => doc._id);
+          setAlertedDocs(prev => [...prev, ...nuevosAlertados]);
+        } else {
+          setAlertOpen(false);
         }
-        if (horasDiff > horas24) {
-          messages.push(`El documento ${doc.nt} lleva más de 24h sin atender.`);
-          shouldAlert = true;
-        }
-        if (horasDiff > horasLegal) {
-          messages.push(`El documento ${doc.nt} excede el límite legal (${horasLegal}h).`);
-          shouldAlert = true;
-        }
-      });
-
-      if (shouldAlert && messages.length > 0) {
-        setAlertMessage(messages.join(' | '));
-        setAlertOpen(true);
-        const audio = document.getElementById('alert-audio');
-        if (audio) {
-          audio.play().catch(err => console.error('Error al reproducir audio:', err));
-        }
-        const nuevosAlertados = noAtendidos
-          .filter((doc) => !alertedDocs.includes(doc._id))
-          .map((doc) => doc._id);
-        setAlertedDocs((prev) => [...prev, ...nuevosAlertados]);
-      } else {
-        setAlertOpen(false);
       }
     } catch (error) {
       console.error('Error al obtener documentos:', error);
     }
   }
-
+  
+  // Función para crear un nuevo documento
   async function crearDocumento(e) {
     e.preventDefault();
-    const nuevoDoc = {
-      nt,
-      fechaLlegada,
-      urgente,
-      atrasado,
-      responsable,
-      atendido
-    };
-
+    const nuevoDoc = { nt, fechaLlegada, urgente, atrasado, responsable, atendido };
     try {
       const res = await fetch('/api/documentos', {
         method: 'POST',
@@ -140,7 +147,8 @@ export default function Home() {
       console.error('Error al crear documento:', error);
     }
   }
-
+  
+  // Función para actualizar un documento (PUT)
   async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
@@ -148,85 +156,120 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
       });
-      if (nuevoAtendido) {
-        setDocumentos((prev) => prev.filter((doc) => doc._id !== id));
-      } else {
-        fetchDocumentos();
-      }
+      fetchDocumentos();
     } catch (error) {
       console.error('Error al actualizar documento:', error);
     }
   }
-
-  // Función para exportar los documentos no atendidos a CSV
-  function exportToCSV(data) {
-    const csvRows = [];
-    const headers = ['NT', 'Fecha de Llegada', 'Urgente', 'Atrasado', 'Responsable', 'Atendido'];
-    csvRows.push(headers.join(','));
-    data.forEach(doc => {
-      const row = [
-        doc.nt,
-        doc.fechaLlegada,
-        doc.urgente ? 'Sí' : 'No',
-        doc.atrasado ? 'Sí' : 'No',
-        doc.responsable,
-        doc.atendido ? 'Sí' : 'No'
-      ];
-      csvRows.push(row.join(','));
-    });
-    return csvRows.join('\n');
-  }
-
-  function handleExportCSV() {
-    const csvData = exportToCSV(documentos);
-    const blob = new Blob([csvData], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.setAttribute('hidden', '');
-    a.setAttribute('href', url);
-    a.setAttribute('download', 'documentos.csv');
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  }
-
+  
+  // Filtrar documentos según vista y búsqueda
+  const filteredDocs = allDocs.filter(doc => {
+    const matchesView = viewType === 'pendientes' ? !doc.atendido : doc.atendido;
+    const matchesSearch = doc.nt.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesView && matchesSearch;
+  });
+  
   return (
     <>
       {/* Audio para alertas */}
       <audio id="alert-audio" src="/alert.mp3" preload="auto" />
-
-      {/* Snackbar para notificaciones */}
-      <Snackbar
-        open={alertOpen}
-        onClose={() => setAlertOpen(false)}
-        message={alertMessage}
-        autoHideDuration={6000}
-      />
-
+      {/* Snackbar para alertas */}
+      <Snackbar open={alertOpen} onClose={() => setAlertOpen(false)} message={alertMessage} autoHideDuration={6000} />
+      
       <AppBar position="static">
         <Toolbar>
           {/* Logo VRAC */}
-          <Box
-            component="img"
-            src="/vrac-logo.png"
-            alt="VRAC Logo"
-            sx={{ height: 50, mr: 2 }}
-          />
+          <Box component="img" src="/vrac-logo.png" alt="VRAC Logo" sx={{ height: 50, mr: 2 }} />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Sistema de Alertas VRAC
           </Typography>
         </Toolbar>
       </AppBar>
-
+      
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        {/* Botón para exportar CSV */}
-        <Box sx={{ mb: 2, textAlign: 'right' }}>
-          <Button variant="outlined" onClick={handleExportCSV}>
-            Exportar CSV
-          </Button>
+        {/* Botón para cambiar la vista: Pendientes vs Histórico */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h5">Documentos</Typography>
+          <ToggleButtonGroup
+            color="primary"
+            value={viewType}
+            exclusive
+            onChange={(e, newView) => newView && setViewType(newView)}
+          >
+            <ToggleButton value="pendientes">Pendientes</ToggleButton>
+            <ToggleButton value="historico">Histórico</ToggleButton>
+          </ToggleButtonGroup>
         </Box>
-
-        {/* Formulario para registrar documentos */}
+        
+        {/* Buscador */}
+        <TextField
+          placeholder="Buscar por NT..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          fullWidth
+          sx={{ mb: 2 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+        />
+        
+        <Paper sx={{ mb: 4, p: 2 }}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>NT</TableCell>
+                <TableCell>Fecha Llegada</TableCell>
+                <TableCell>Urgente</TableCell>
+                <TableCell>Atrasado</TableCell>
+                <TableCell>Responsable</TableCell>
+                <TableCell>Atendido</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredDocs.map(doc => (
+                <TableRow key={doc._id}>
+                  <TableCell>{doc.nt}</TableCell>
+                  <TableCell>{doc.fechaLlegada}</TableCell>
+                  <TableCell sx={{ backgroundColor: doc.urgente ? '#ffcccc' : 'transparent' }}>
+                    {doc.urgente ? 'Sí' : 'No'}
+                  </TableCell>
+                  <TableCell sx={{ backgroundColor: doc.atrasado ? '#ffe0b3' : 'transparent' }}>
+                    {doc.atrasado ? 'Sí' : 'No'}
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={doc.responsable}
+                      onChange={(e) =>
+                        actualizarDocumento(doc._id, e.target.value, doc.atendido)
+                      }
+                      size="small"
+                    >
+                      {responsables.map(r => (
+                        <MenuItem key={r} value={r}>
+                          {r}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Checkbox
+                      checked={doc.atendido}
+                      onChange={(e) =>
+                        actualizarDocumento(doc._id, doc.responsable, e.target.checked)
+                      }
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Paper>
+        
+        {/* Formulario para crear documentos */}
         <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom>
             Registrar Documento
@@ -270,90 +313,5 @@ export default function Home() {
               value={responsable}
               onChange={(e) => setResponsable(e.target.value)}
             >
-              {responsables.map((r) => (
-                <MenuItem key={r} value={r}>
-                  {r}
-                </MenuItem>
-              ))}
-            </Select>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={atendido}
-                  onChange={(e) => setAtendido(e.target.checked)}
-                />
-              }
-              label="¿Atendido?"
-            />
-            <Button variant="contained" type="submit" color="primary">
-              CREAR
-            </Button>
-          </Stack>
-        </Box>
-
-        <Typography variant="h5" gutterBottom>
-          Lista de Documentos (No Atendidos)
-        </Typography>
-        <Paper>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>NT</TableCell>
-                <TableCell>Fecha Llegada</TableCell>
-                <TableCell>Urgente</TableCell>
-                <TableCell>Atrasado</TableCell>
-                <TableCell>Responsable</TableCell>
-                <TableCell>Atendido</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {documentos.map((doc) => (
-                <TableRow key={doc._id}>
-                  <TableCell>{doc.nt}</TableCell>
-                  <TableCell>{doc.fechaLlegada}</TableCell>
-                  <TableCell
-                    sx={{
-                      backgroundColor: doc.urgente ? '#ffcccc' : 'transparent'
-                    }}
-                  >
-                    {doc.urgente ? 'Sí' : 'No'}
-                  </TableCell>
-                  <TableCell
-                    sx={{
-                      backgroundColor: doc.atrasado ? '#ffe0b3' : 'transparent'
-                    }}
-                  >
-                    {doc.atrasado ? 'Sí' : 'No'}
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={doc.responsable}
-                      onChange={(e) =>
-                        actualizarDocumento(doc._id, e.target.value, doc.atendido)
-                      }
-                      size="small"
-                    >
-                      {responsables.map((r) => (
-                        <MenuItem key={r} value={r}>
-                          {r}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Checkbox
-                      checked={doc.atendido}
-                      onChange={(e) =>
-                        actualizarDocumento(doc._id, doc.responsable, e.target.checked)
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Paper>
-      </Container>
-    </>
-  );
-}
+              {responsables.map(r => (
+                <M
