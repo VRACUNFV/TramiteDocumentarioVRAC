@@ -1,17 +1,22 @@
 import { createTheme } from '@mui/material/styles';
 
-// Puedes personalizar estos valores según la identidad visual del VRAC
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#ff6600', // Color principal, ajusta según el logo o la identidad institucional
+      // Color guinda (puedes ajustar el tono a tu preferencia)
+      main: '#800000',
     },
     secondary: {
-      main: '#003366', // Color secundario
+      main: '#ffffff', // Usamos blanco como acento
+    },
+    background: {
+      // Un color de fondo suave que contraste bien con el guinda
+      default: '#f5f5f5',
     },
   },
   typography: {
-    fontFamily: 'Roboto, Arial, sans-serif',
+    // Usamos una tipografía moderna; asegúrate de importarla en tu _document.js o index.html
+    fontFamily: '"Montserrat", "Helvetica", "Arial", sans-serif',
   },
 });
 
