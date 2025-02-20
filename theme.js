@@ -3,19 +3,19 @@ import { createTheme } from '@mui/material/styles';
 const theme = createTheme({
   palette: {
     primary: {
-      // Color guinda (puedes ajustar el tono a tu preferencia)
+      // Guinda
       main: '#800000',
     },
     secondary: {
-      main: '#ffffff', // Usamos blanco como acento
+      main: '#ffffff',
     },
     background: {
-      // Un color de fondo suave que contraste bien con el guinda
+      // Fondo claro
       default: '#f5f5f5',
     },
   },
   typography: {
-    // Usamos una tipografía moderna; asegúrate de importarla en tu _document.js o index.html
+    // Fuente Montserrat
     fontFamily: '"Montserrat", "Helvetica", "Arial", sans-serif',
   },
 });
