@@ -7,9 +7,9 @@
     "start": "next start"
   },
   "dependencies": {
-    "mongoose": "latest",
     "next": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "mongodb": "latest"
   }
 }
