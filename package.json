@@ -13,6 +13,7 @@
     "mongodb": "latest",
     "@mui/material": "latest",
     "@emotion/react": "latest",
-    "@emotion/styled": "latest"
+    "@emotion/styled": "latest",
+    "@mui/icons-material": "latest"
   }
 }
