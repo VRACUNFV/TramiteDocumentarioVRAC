@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-// MUI Components
+// Importación de componentes de Material UI
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Container from '@mui/material/Container';
@@ -19,6 +19,8 @@ import TableCell from '@mui/material/TableCell';
 import TableBody from '@mui/material/TableBody';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
+import IconButton from '@mui/material/IconButton';
+import WarningIcon from '@mui/icons-material/Warning';
 
 export default function Home() {
   const [documentos, setDocumentos] = useState([]);
@@ -29,7 +31,6 @@ export default function Home() {
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
 
-  // Lista de responsables
   const responsables = [
     'Karina',
     'Jessica',
@@ -41,7 +42,7 @@ export default function Home() {
     'Christian',
   ];
 
-  // Al montar el componente, cargamos la lista de documentos
+  // Cargar documentos al iniciar la página
   useEffect(() => {
     fetchDocumentos();
   }, []);
@@ -75,7 +76,7 @@ export default function Home() {
       });
       await res.json();
 
-      // Limpia el formulario
+      // Limpiar el formulario
       setNt('');
       setFechaLlegada('');
       setUrgente(false);
@@ -83,7 +84,7 @@ export default function Home() {
       setResponsable('Karina');
       setAtendido(false);
 
-      // Vuelve a cargar la lista
+      // Recargar la lista
       fetchDocumentos();
     } catch (error) {
       console.error('Error al crear documento:', error);
@@ -108,23 +109,26 @@ export default function Home() {
 
   return (
     <>
-      {/* Encabezado con AppBar y logo */}
+      {/* Encabezado */}
       <AppBar position="static">
         <Toolbar>
-          {/* Logo VRAC */}
-          <img
+          <Box
+            component="img"
             src="/vrac-logo.png"
             alt="VRAC Logo"
-            style={{ height: '50px', marginRight: '10px' }}
+            sx={{ height: 50, mr: 2 }}
           />
-          <Typography variant="h6" component="div">
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Sistema de Alertas VRAC
           </Typography>
+          <IconButton color="inherit">
+            <WarningIcon />
+          </IconButton>
         </Toolbar>
       </AppBar>
 
-      {/* Contenido principal */}
-      <Container maxWidth="md" sx={{ marginTop: 4 }}>
+      <Container maxWidth="md" sx={{ mt: 4 }}>
+        {/* Formulario */}
         <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom>
             Registrar Documento
@@ -189,6 +193,7 @@ export default function Home() {
           </Stack>
         </Box>
 
+        {/* Tabla de documentos */}
         <Typography variant="h5" gutterBottom>
           Lista de Documentos
         </Typography>
