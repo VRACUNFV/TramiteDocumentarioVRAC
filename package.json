@@ -17,6 +17,7 @@
     "@mui/icons-material": "latest",
     "recharts": "latest",
     "pusher": "latest",
-    "pusher-js": "latest"
+    "pusher-js": "latest",
+    "jsPDF": "latest"
   }
 }
