@@ -21,14 +21,6 @@ import {
   Snackbar
 } from '@mui/material';
 
-/**
- * CONFIGURA AQUÍ TUS TIEMPOS:
- *  - horas24: tiempo para la alerta de 24 horas
- *  - horasLegal: tiempo máximo según ley (ej. 72 horas)
- */
-const horas24 = 24;
-const horasLegal = 72;
-
 export default function Home() {
   const [documentos, setDocumentos] = useState([]);
   const [nt, setNt] = useState('');
@@ -38,10 +30,9 @@ export default function Home() {
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
 
-  // Para las alertas (Snackbar)
+  // Para alertas (Snackbar y sonido)
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
-  // Para evitar re-alertar el mismo documento varias veces
   const [alertedDocs, setAlertedDocs] = useState([]);
 
   const responsables = [
@@ -55,86 +46,63 @@ export default function Home() {
     'Christian'
   ];
 
-  // Al montar, cargamos documentos
+  // Parámetros para alertas (horas)
+  const horas24 = 24;
+  const horasLegal = 72;
+
+  // Cargar documentos al montar y cada 10s
   useEffect(() => {
     fetchDocumentos();
-  }, []);
-
-  // Refresco cada 10 segundos
-  useEffect(() => {
     const interval = setInterval(() => {
       fetchDocumentos();
     }, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  /**
-   * Obtiene todos los documentos y filtra los "atendidos".
-   * Además, genera alertas si:
-   *   - Hay documentos urgentes no atendidos
-   *   - Han pasado 24h
-   *   - Han pasado 72h (o el tiempo legal)
-   */
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
-
-      // Filtra NO atendidos
+      // Filtramos documentos no atendidos
       const noAtendidos = data.filter((doc) => !doc.atendido);
       setDocumentos(noAtendidos);
 
-      // Lógica de alertas
-      const messages = [];
+      // Lógica de alertas para documentos urgentes, >24h o >72h sin atender
       let shouldAlert = false;
-
+      const messages = [];
       noAtendidos.forEach((doc) => {
-        // Verificamos si ya alertamos por este doc
         if (alertedDocs.includes(doc._id)) return;
 
-        // Calcular horas transcurridas desde fechaLlegada
         const fecha = new Date(doc.fechaLlegada);
         const ahora = new Date();
         const horasDiff = (ahora - fecha) / (1000 * 60 * 60);
 
-        // 1. Si es urgente
         if (doc.urgente) {
-          messages.push(`Documento ${doc.nt} es Urgente.`);
+          messages.push(`El documento ${doc.nt} es urgente.`);
           shouldAlert = true;
         }
-
-        // 2. Si pasan 24h sin atender
         if (horasDiff > horas24) {
-          messages.push(`Documento ${doc.nt} lleva más de 24h sin atención.`);
+          messages.push(`El documento ${doc.nt} lleva más de 24h sin atender.`);
           shouldAlert = true;
         }
-
-        // 3. Si excede el límite legal
         if (horasDiff > horasLegal) {
-          messages.push(`Documento ${doc.nt} excede el límite legal (${horasLegal}h).`);
+          messages.push(`El documento ${doc.nt} excede el límite legal (${horasLegal}h).`);
           shouldAlert = true;
         }
       });
 
       if (shouldAlert && messages.length > 0) {
-        // Unimos mensajes en una sola notificación
         setAlertMessage(messages.join(' | '));
         setAlertOpen(true);
-
-        // Reproducir sonido
         const audio = document.getElementById('alert-audio');
         if (audio) {
-          audio.play().catch((err) => console.error('Error al reproducir audio:', err));
+          audio.play().catch(err => console.error('Error al reproducir audio:', err));
         }
-
-        // Marcamos estos docs como alertados para no repetir
-        const newAlertedDocs = noAtendidos
+        const nuevosAlertados = noAtendidos
           .filter((doc) => !alertedDocs.includes(doc._id))
           .map((doc) => doc._id);
-
-        setAlertedDocs((prev) => [...prev, ...newAlertedDocs]);
+        setAlertedDocs((prev) => [...prev, ...nuevosAlertados]);
       } else {
-        // Si no hay alertas nuevas, cerramos el Snackbar
         setAlertOpen(false);
       }
     } catch (error) {
@@ -142,7 +110,6 @@ export default function Home() {
     }
   }
 
-  // Crear documento (POST)
   async function crearDocumento(e) {
     e.preventDefault();
     const nuevoDoc = {
@@ -161,54 +128,74 @@ export default function Home() {
         body: JSON.stringify(nuevoDoc)
       });
       await res.json();
-
-      // Limpia el formulario
+      // Limpiar formulario
       setNt('');
       setFechaLlegada('');
       setUrgente(false);
       setAtrasado(false);
       setResponsable('Karina');
       setAtendido(false);
-
-      // Recarga
       fetchDocumentos();
     } catch (error) {
       console.error('Error al crear documento:', error);
     }
   }
 
-  // Actualizar (PUT). Si "atendido" => lo quitamos de la lista
-async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
-  try {
-    const res = await fetch(`/api/documentos?id=${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
-    });
-    const data = await res.json();
-    console.log('Respuesta al actualizar:', data);
-
-    if (res.ok) {
+  async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
+    try {
+      await fetch(`/api/documentos?id=${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
+      });
       if (nuevoAtendido) {
-        // Lo quitamos de la lista
         setDocumentos((prev) => prev.filter((doc) => doc._id !== id));
       } else {
         fetchDocumentos();
       }
-    } else {
-      console.error('PUT falló:', data);
+    } catch (error) {
+      console.error('Error al actualizar documento:', error);
     }
-  } catch (error) {
-    console.error('Error al actualizar documento:', error);
   }
-}
+
+  // Función para exportar los documentos no atendidos a CSV
+  function exportToCSV(data) {
+    const csvRows = [];
+    const headers = ['NT', 'Fecha de Llegada', 'Urgente', 'Atrasado', 'Responsable', 'Atendido'];
+    csvRows.push(headers.join(','));
+    data.forEach(doc => {
+      const row = [
+        doc.nt,
+        doc.fechaLlegada,
+        doc.urgente ? 'Sí' : 'No',
+        doc.atrasado ? 'Sí' : 'No',
+        doc.responsable,
+        doc.atendido ? 'Sí' : 'No'
+      ];
+      csvRows.push(row.join(','));
+    });
+    return csvRows.join('\n');
+  }
+
+  function handleExportCSV() {
+    const csvData = exportToCSV(documentos);
+    const blob = new Blob([csvData], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', 'documentos.csv');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
 
   return (
     <>
       {/* Audio para alertas */}
       <audio id="alert-audio" src="/alert.mp3" preload="auto" />
 
-      {/* Snackbar para mostrar alertas */}
+      {/* Snackbar para notificaciones */}
       <Snackbar
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
@@ -232,7 +219,14 @@ async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
       </AppBar>
 
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        {/* Formulario */}
+        {/* Botón para exportar CSV */}
+        <Box sx={{ mb: 2, textAlign: 'right' }}>
+          <Button variant="outlined" onClick={handleExportCSV}>
+            Exportar CSV
+          </Button>
+        </Box>
+
+        {/* Formulario para registrar documentos */}
         <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom>
             Registrar Documento
