@@ -18,6 +18,6 @@
     "recharts": "latest",
     "pusher": "latest",
     "pusher-js": "latest",
-    "jsPDF": "latest"
+    "jspdf": "latest"
   }
 }
