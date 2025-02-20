@@ -178,22 +178,30 @@ export default function Home() {
   }
 
   // Actualizar (PUT). Si "atendido" => lo quitamos de la lista
-  async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
-    try {
-      await fetch(`/api/documentos?id=${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
-      });
+async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
+  try {
+    const res = await fetch(`/api/documentos?id=${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
+    });
+    const data = await res.json();
+    console.log('Respuesta al actualizar:', data);
+
+    if (res.ok) {
       if (nuevoAtendido) {
+        // Lo quitamos de la lista
         setDocumentos((prev) => prev.filter((doc) => doc._id !== id));
       } else {
         fetchDocumentos();
       }
-    } catch (error) {
-      console.error('Error al actualizar documento:', error);
+    } else {
+      console.error('PUT falló:', data);
     }
+  } catch (error) {
+    console.error('Error al actualizar documento:', error);
   }
+}
 
   return (
     <>
