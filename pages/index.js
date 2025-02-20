@@ -1,16 +1,35 @@
 import { useState, useEffect } from 'react';
 
+// MUI Components
+import AppBar from '@mui/material/AppBar';
+import Toolbar from '@mui/material/Toolbar';
+import Container from '@mui/material/Container';
+import Typography from '@mui/material/Typography';
+import Box from '@mui/material/Box';
+import TextField from '@mui/material/TextField';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Checkbox from '@mui/material/Checkbox';
+import Button from '@mui/material/Button';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import Table from '@mui/material/Table';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import TableCell from '@mui/material/TableCell';
+import TableBody from '@mui/material/TableBody';
+import Paper from '@mui/material/Paper';
+import Stack from '@mui/material/Stack';
+
 export default function Home() {
   const [documentos, setDocumentos] = useState([]);
   const [nt, setNt] = useState('');
   const [fechaLlegada, setFechaLlegada] = useState('');
-  // Eliminamos "estado"
   const [urgente, setUrgente] = useState(false);
   const [atrasado, setAtrasado] = useState(false);
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
 
-  // Lista de responsables para el desplegable
+  // Lista de responsables
   const responsables = [
     'Karina',
     'Jessica',
@@ -19,15 +38,14 @@ export default function Home() {
     'Fabiola',
     'Romina',
     'David',
-    'Christian'
+    'Christian',
   ];
 
-  // Cargar documentos al iniciar la página
+  // Al montar el componente, cargamos la lista de documentos
   useEffect(() => {
     fetchDocumentos();
   }, []);
 
-  // Función para obtener la lista de documentos (GET)
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
@@ -38,7 +56,6 @@ export default function Home() {
     }
   }
 
-  // Crear un nuevo documento (POST)
   async function crearDocumento(e) {
     e.preventDefault();
     const nuevoDoc = {
@@ -47,18 +64,18 @@ export default function Home() {
       urgente,
       atrasado,
       responsable,
-      atendido
+      atendido,
     };
 
     try {
       const res = await fetch('/api/documentos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nuevoDoc)
+        body: JSON.stringify(nuevoDoc),
       });
       await res.json();
 
-      // Limpiar el formulario
+      // Limpia el formulario
       setNt('');
       setFechaLlegada('');
       setUrgente(false);
@@ -66,20 +83,22 @@ export default function Home() {
       setResponsable('Karina');
       setAtendido(false);
 
-      // Volver a cargar la lista
+      // Vuelve a cargar la lista
       fetchDocumentos();
     } catch (error) {
       console.error('Error al crear documento:', error);
     }
   }
 
-  // Actualizar responsable o “Atendido” (PUT)
   async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
+        body: JSON.stringify({
+          responsable: nuevoResponsable,
+          atendido: nuevoAtendido,
+        }),
       });
       fetchDocumentos();
     } catch (error) {
@@ -88,149 +107,151 @@ export default function Home() {
   }
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      {/* Encabezado con el logo del VRAC */}
-      <header style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-        {/* Asegúrate de colocar el archivo en /public/vrac-logo.png */}
-        <img
-          src="/vrac-logo.png"
-          alt="VRAC Logo"
-          style={{ height: '60px', marginRight: '10px' }}
-        />
-        <h1 style={{ margin: 0 }}>Sistema de Alertas VRAC</h1>
-      </header>
+    <>
+      {/* Encabezado con AppBar y logo */}
+      <AppBar position="static">
+        <Toolbar>
+          {/* Logo VRAC */}
+          <img
+            src="/vrac-logo.png"
+            alt="VRAC Logo"
+            style={{ height: '50px', marginRight: '10px' }}
+          />
+          <Typography variant="h6" component="div">
+            Sistema de Alertas VRAC
+          </Typography>
+        </Toolbar>
+      </AppBar>
 
-      {/* Formulario para crear un nuevo documento */}
-      <form
-        onSubmit={crearDocumento}
-        style={{ marginBottom: '20px', border: '1px solid #ccc', padding: '10px' }}
-      >
-        <h2>Registrar Documento</h2>
-        <div style={{ marginBottom: '10px' }}>
-          <label style={{ marginRight: '5px' }}>NT:</label>
-          <input
-            type="text"
-            value={nt}
-            onChange={(e) => setNt(e.target.value)}
-            required
-          />
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label style={{ marginRight: '5px' }}>Fecha de Llegada:</label>
-          <input
-            type="date"
-            value={fechaLlegada}
-            onChange={(e) => setFechaLlegada(e.target.value)}
-            required
-          />
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label>¿Urgente?</label>
-          <input
-            type="checkbox"
-            checked={urgente}
-            onChange={(e) => setUrgente(e.target.checked)}
-            style={{ marginLeft: '5px' }}
-          />
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label>¿Atrasado?</label>
-          <input
-            type="checkbox"
-            checked={atrasado}
-            onChange={(e) => setAtrasado(e.target.checked)}
-            style={{ marginLeft: '5px' }}
-          />
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label>Responsable:</label>
-          <select
-            value={responsable}
-            onChange={(e) => setResponsable(e.target.value)}
-            style={{ marginLeft: '5px' }}
-          >
-            {responsables.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div style={{ marginBottom: '10px' }}>
-          <label>¿Atendido?</label>
-          <input
-            type="checkbox"
-            checked={atendido}
-            onChange={(e) => setAtendido(e.target.checked)}
-            style={{ marginLeft: '5px' }}
-          />
-        </div>
-        <button type="submit" style={{ marginTop: '10px' }}>Crear</button>
-      </form>
-
-      {/* Tabla de documentos */}
-      <h2>Lista de Documentos</h2>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ backgroundColor: '#f4f4f4' }}>
-            <th style={{ border: '1px solid #ccc', padding: '8px' }}>NT</th>
-            <th style={{ border: '1px solid #ccc', padding: '8px' }}>Fecha Llegada</th>
-            <th style={{ border: '1px solid #ccc', padding: '8px' }}>Urgente</th>
-            <th style={{ border: '1px solid #ccc', padding: '8px' }}>Atrasado</th>
-            <th style={{ border: '1px solid #ccc', padding: '8px' }}>Responsable</th>
-            <th style={{ border: '1px solid #ccc', padding: '8px' }}>Atendido</th>
-          </tr>
-        </thead>
-        <tbody>
-          {documentos.map((doc) => (
-            <tr key={doc._id}>
-              <td style={{ border: '1px solid #ccc', padding: '8px' }}>{doc.nt}</td>
-              <td style={{ border: '1px solid #ccc', padding: '8px' }}>{doc.fechaLlegada}</td>
-              <td
-                style={{
-                  border: '1px solid #ccc',
-                  padding: '8px',
-                  backgroundColor: doc.urgente ? '#ffcccc' : 'transparent'
-                }}
-              >
-                {doc.urgente ? 'Sí' : 'No'}
-              </td>
-              <td
-                style={{
-                  border: '1px solid #ccc',
-                  padding: '8px',
-                  backgroundColor: doc.atrasado ? '#ffe0b3' : 'transparent'
-                }}
-              >
-                {doc.atrasado ? 'Sí' : 'No'}
-              </td>
-              <td style={{ border: '1px solid #ccc', padding: '8px' }}>
-                <select
-                  value={doc.responsable}
-                  onChange={(e) =>
-                    actualizarDocumento(doc._id, e.target.value, doc.atendido)
-                  }
-                >
-                  {responsables.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td style={{ border: '1px solid #ccc', padding: '8px' }}>
-                <input
-                  type="checkbox"
-                  checked={doc.atendido}
-                  onChange={(e) =>
-                    actualizarDocumento(doc._id, doc.responsable, e.target.checked)
-                  }
+      {/* Contenido principal */}
+      <Container maxWidth="md" sx={{ marginTop: 4 }}>
+        <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
+          <Typography variant="h5" gutterBottom>
+            Registrar Documento
+          </Typography>
+          <Stack spacing={2} sx={{ maxWidth: 400 }}>
+            <TextField
+              label="NT"
+              variant="outlined"
+              required
+              value={nt}
+              onChange={(e) => setNt(e.target.value)}
+            />
+            <TextField
+              label="Fecha de Llegada"
+              type="date"
+              InputLabelProps={{ shrink: true }}
+              required
+              value={fechaLlegada}
+              onChange={(e) => setFechaLlegada(e.target.value)}
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={urgente}
+                  onChange={(e) => setUrgente(e.target.checked)}
                 />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              }
+              label="¿Urgente?"
+            />
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={atrasado}
+                  onChange={(e) => setAtrasado(e.target.checked)}
+                />
+              }
+              label="¿Atrasado?"
+            />
+            <Typography>Responsable</Typography>
+            <Select
+              value={responsable}
+              onChange={(e) => setResponsable(e.target.value)}
+            >
+              {responsables.map((r) => (
+                <MenuItem key={r} value={r}>
+                  {r}
+                </MenuItem>
+              ))}
+            </Select>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={atendido}
+                  onChange={(e) => setAtendido(e.target.checked)}
+                />
+              }
+              label="¿Atendido?"
+            />
+            <Button variant="contained" type="submit">
+              Crear
+            </Button>
+          </Stack>
+        </Box>
+
+        <Typography variant="h5" gutterBottom>
+          Lista de Documentos
+        </Typography>
+        <Paper>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>NT</TableCell>
+                <TableCell>Fecha Llegada</TableCell>
+                <TableCell>Urgente</TableCell>
+                <TableCell>Atrasado</TableCell>
+                <TableCell>Responsable</TableCell>
+                <TableCell>Atendido</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {documentos.map((doc) => (
+                <TableRow key={doc._id}>
+                  <TableCell>{doc.nt}</TableCell>
+                  <TableCell>{doc.fechaLlegada}</TableCell>
+                  <TableCell
+                    sx={{
+                      backgroundColor: doc.urgente ? '#ffcccc' : 'transparent',
+                    }}
+                  >
+                    {doc.urgente ? 'Sí' : 'No'}
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      backgroundColor: doc.atrasado ? '#ffe0b3' : 'transparent',
+                    }}
+                  >
+                    {doc.atrasado ? 'Sí' : 'No'}
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={doc.responsable}
+                      onChange={(e) =>
+                        actualizarDocumento(doc._id, e.target.value, doc.atendido)
+                      }
+                      size="small"
+                    >
+                      {responsables.map((r) => (
+                        <MenuItem key={r} value={r}>
+                          {r}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Checkbox
+                      checked={doc.atendido}
+                      onChange={(e) =>
+                        actualizarDocumento(doc._id, doc.responsable, e.target.checked)
+                      }
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Paper>
+      </Container>
+    </>
   );
 }
