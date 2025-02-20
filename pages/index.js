@@ -1,21 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [documentos, setDocumentos] = useState([]);
   const [nt, setNt] = useState('');
   const [fechaLlegada, setFechaLlegada] = useState('');
-  const [estado, setEstado] = useState('');
+  // Eliminamos "estado"
   const [urgente, setUrgente] = useState(false);
   const [atrasado, setAtrasado] = useState(false);
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
 
-  // 1. Cargar documentos al iniciar la página
+  // Lista de responsables para el desplegable
+  const responsables = [
+    'Karina',
+    'Jessica',
+    'Walter',
+    'Luis',
+    'Fabiola',
+    'Romina',
+    'David',
+    'Christian'
+  ];
+
+  // Cargar documentos al iniciar la página
   useEffect(() => {
-    obtenerDocumentos();
+    fetchDocumentos();
   }, []);
 
-  async function obtenerDocumentos() {
+  // Función para obtener la lista de documentos (GET)
+  async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
@@ -25,13 +38,12 @@ export default function Home() {
     }
   }
 
-  // 2. Crear un nuevo documento (POST)
+  // Crear un nuevo documento (POST)
   async function crearDocumento(e) {
-    e.preventDefault(); // Evita que la página se recargue
+    e.preventDefault();
     const nuevoDoc = {
       nt,
       fechaLlegada,
-      estado,
       urgente,
       atrasado,
       responsable,
@@ -41,31 +53,27 @@ export default function Home() {
     try {
       const res = await fetch('/api/documentos', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nuevoDoc)
       });
-      const data = await res.json();
-      console.log('Documento creado:', data);
+      await res.json();
 
-      // Limpia el formulario
+      // Limpiar el formulario
       setNt('');
       setFechaLlegada('');
-      setEstado('');
       setUrgente(false);
       setAtrasado(false);
       setResponsable('Karina');
       setAtendido(false);
 
-      // Vuelve a cargar la lista de documentos
-      obtenerDocumentos();
+      // Volver a cargar la lista
+      fetchDocumentos();
     } catch (error) {
       console.error('Error al crear documento:', error);
     }
   }
 
-  // 3. Actualizar un documento (ej. cambiar responsable o marcar atendido)
+  // Actualizar responsable o “Atendido” (PUT)
   async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
@@ -73,55 +81,89 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
       });
-      // Recarga la lista
-      obtenerDocumentos();
+      fetchDocumentos();
     } catch (error) {
       console.error('Error al actualizar documento:', error);
     }
   }
 
-  // Lista de responsables para el dropdown
-  const responsables = ['Karina', 'Jessica', 'Walter', 'Luis', 'Fabiola', 'Romina', 'David', 'Christian'];
-
   return (
     <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h1>Sistema de Alertas VRAC</h1>
-      <p>¡Bienvenido! Aquí puedes gestionar tus documentos.</p>
+      {/* Encabezado con el logo del VRAC */}
+      <header style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+        {/* Asegúrate de colocar el archivo en /public/vrac-logo.png */}
+        <img
+          src="/vrac-logo.png"
+          alt="VRAC Logo"
+          style={{ height: '60px', marginRight: '10px' }}
+        />
+        <h1 style={{ margin: 0 }}>Sistema de Alertas VRAC</h1>
+      </header>
 
       {/* Formulario para crear un nuevo documento */}
-      <form onSubmit={crearDocumento} style={{ marginBottom: '20px', border: '1px solid #ccc', padding: '10px' }}>
+      <form
+        onSubmit={crearDocumento}
+        style={{ marginBottom: '20px', border: '1px solid #ccc', padding: '10px' }}
+      >
         <h2>Registrar Documento</h2>
-        <div>
-          <label>NT: </label>
-          <input type="text" value={nt} onChange={(e) => setNt(e.target.value)} required />
+        <div style={{ marginBottom: '10px' }}>
+          <label style={{ marginRight: '5px' }}>NT:</label>
+          <input
+            type="text"
+            value={nt}
+            onChange={(e) => setNt(e.target.value)}
+            required
+          />
         </div>
-        <div>
-          <label>Fecha de Llegada: </label>
-          <input type="date" value={fechaLlegada} onChange={(e) => setFechaLlegada(e.target.value)} required />
+        <div style={{ marginBottom: '10px' }}>
+          <label style={{ marginRight: '5px' }}>Fecha de Llegada:</label>
+          <input
+            type="date"
+            value={fechaLlegada}
+            onChange={(e) => setFechaLlegada(e.target.value)}
+            required
+          />
         </div>
-        <div>
-          <label>Estado: </label>
-          <input type="text" value={estado} onChange={(e) => setEstado(e.target.value)} />
+        <div style={{ marginBottom: '10px' }}>
+          <label>¿Urgente?</label>
+          <input
+            type="checkbox"
+            checked={urgente}
+            onChange={(e) => setUrgente(e.target.checked)}
+            style={{ marginLeft: '5px' }}
+          />
         </div>
-        <div>
-          <label>¿Urgente? </label>
-          <input type="checkbox" checked={urgente} onChange={(e) => setUrgente(e.target.checked)} />
+        <div style={{ marginBottom: '10px' }}>
+          <label>¿Atrasado?</label>
+          <input
+            type="checkbox"
+            checked={atrasado}
+            onChange={(e) => setAtrasado(e.target.checked)}
+            style={{ marginLeft: '5px' }}
+          />
         </div>
-        <div>
-          <label>¿Atrasado? </label>
-          <input type="checkbox" checked={atrasado} onChange={(e) => setAtrasado(e.target.checked)} />
-        </div>
-        <div>
-          <label>Responsable: </label>
-          <select value={responsable} onChange={(e) => setResponsable(e.target.value)}>
+        <div style={{ marginBottom: '10px' }}>
+          <label>Responsable:</label>
+          <select
+            value={responsable}
+            onChange={(e) => setResponsable(e.target.value)}
+            style={{ marginLeft: '5px' }}
+          >
             {responsables.map((r) => (
-              <option key={r} value={r}>{r}</option>
+              <option key={r} value={r}>
+                {r}
+              </option>
             ))}
           </select>
         </div>
-        <div>
-          <label>¿Atendido? </label>
-          <input type="checkbox" checked={atendido} onChange={(e) => setAtendido(e.target.checked)} />
+        <div style={{ marginBottom: '10px' }}>
+          <label>¿Atendido?</label>
+          <input
+            type="checkbox"
+            checked={atendido}
+            onChange={(e) => setAtendido(e.target.checked)}
+            style={{ marginLeft: '5px' }}
+          />
         </div>
         <button type="submit" style={{ marginTop: '10px' }}>Crear</button>
       </form>
@@ -133,7 +175,6 @@ export default function Home() {
           <tr style={{ backgroundColor: '#f4f4f4' }}>
             <th style={{ border: '1px solid #ccc', padding: '8px' }}>NT</th>
             <th style={{ border: '1px solid #ccc', padding: '8px' }}>Fecha Llegada</th>
-            <th style={{ border: '1px solid #ccc', padding: '8px' }}>Estado</th>
             <th style={{ border: '1px solid #ccc', padding: '8px' }}>Urgente</th>
             <th style={{ border: '1px solid #ccc', padding: '8px' }}>Atrasado</th>
             <th style={{ border: '1px solid #ccc', padding: '8px' }}>Responsable</th>
@@ -142,23 +183,38 @@ export default function Home() {
         </thead>
         <tbody>
           {documentos.map((doc) => (
-            <tr key={doc.id}>
+            <tr key={doc._id}>
               <td style={{ border: '1px solid #ccc', padding: '8px' }}>{doc.nt}</td>
               <td style={{ border: '1px solid #ccc', padding: '8px' }}>{doc.fechaLlegada}</td>
-              <td style={{ border: '1px solid #ccc', padding: '8px' }}>{doc.estado}</td>
-              <td style={{ border: '1px solid #ccc', padding: '8px', backgroundColor: doc.urgente ? '#ffcccc' : '' }}>
+              <td
+                style={{
+                  border: '1px solid #ccc',
+                  padding: '8px',
+                  backgroundColor: doc.urgente ? '#ffcccc' : 'transparent'
+                }}
+              >
                 {doc.urgente ? 'Sí' : 'No'}
               </td>
-              <td style={{ border: '1px solid #ccc', padding: '8px', backgroundColor: doc.atrasado ? '#ffe0b3' : '' }}>
+              <td
+                style={{
+                  border: '1px solid #ccc',
+                  padding: '8px',
+                  backgroundColor: doc.atrasado ? '#ffe0b3' : 'transparent'
+                }}
+              >
                 {doc.atrasado ? 'Sí' : 'No'}
               </td>
               <td style={{ border: '1px solid #ccc', padding: '8px' }}>
                 <select
                   value={doc.responsable}
-                  onChange={(e) => actualizarDocumento(doc.id, e.target.value, doc.atendido)}
+                  onChange={(e) =>
+                    actualizarDocumento(doc._id, e.target.value, doc.atendido)
+                  }
                 >
                   {responsables.map((r) => (
-                    <option key={r} value={r}>{r}</option>
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
                   ))}
                 </select>
               </td>
@@ -166,7 +222,9 @@ export default function Home() {
                 <input
                   type="checkbox"
                   checked={doc.atendido}
-                  onChange={(e) => actualizarDocumento(doc.id, doc.responsable, e.target.checked)}
+                  onChange={(e) =>
+                    actualizarDocumento(doc._id, doc.responsable, e.target.checked)
+                  }
                 />
               </td>
             </tr>
