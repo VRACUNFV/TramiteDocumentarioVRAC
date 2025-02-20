@@ -30,7 +30,6 @@ export default function Home() {
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
 
-  // Responsables disponibles
   const responsables = [
     'Karina',
     'Jessica',
@@ -42,17 +41,17 @@ export default function Home() {
     'Christian'
   ];
 
-  // Cargar documentos al montar
+  // Cargar documentos al iniciar
   useEffect(() => {
     fetchDocumentos();
   }, []);
 
-  // Obtiene TODOS y filtra "atendidos" en el front
+  // Obtiene todos y filtra los atendidos
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
-      // Filtramos para no mostrar los atendidos
+      // Filtra documentos que NO estén atendidos
       const noAtendidos = data.filter((doc) => !doc.atendido);
       setDocumentos(noAtendidos);
     } catch (error) {
@@ -60,7 +59,7 @@ export default function Home() {
     }
   }
 
-  // Crear nuevo doc (POST)
+  // Crear (POST)
   async function crearDocumento(e) {
     e.preventDefault();
     const nuevoDoc = {
@@ -95,7 +94,7 @@ export default function Home() {
     }
   }
 
-  // Actualizar doc (PUT). Si "atendido" => desaparece de la lista
+  // Actualizar (PUT). Si se marca "atendido", desaparece de la lista
   async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
@@ -104,10 +103,10 @@ export default function Home() {
         body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
       });
       if (nuevoAtendido) {
-        // Quita localmente el doc
+        // Elimina el doc localmente
         setDocumentos((prev) => prev.filter((doc) => doc._id !== id));
       } else {
-        // Si lo desmarcas (raro), recargamos
+        // Si se desmarca (raro), recargamos
         fetchDocumentos();
       }
     } catch (error) {
@@ -119,6 +118,13 @@ export default function Home() {
     <>
       <AppBar position="static">
         <Toolbar>
+          {/* LOGO VRAC */}
+          <Box
+            component="img"
+            src="/vrac-logo.png"
+            alt="VRAC Logo"
+            sx={{ height: 50, mr: 2 }}
+          />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Sistema de Alertas VRAC
           </Typography>
