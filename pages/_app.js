@@ -12,7 +12,7 @@ export default function MyApp({ Component, pageProps }) {
         <meta name="viewport" content="initial-scale=1, width=device-width" />
       </Head>
       <ThemeProvider theme={theme}>
-        {/* CssBaseline normaliza el CSS y establece estilos base */}
+        {/* CssBaseline normaliza estilos por defecto */}
         <CssBaseline />
         <Component {...pageProps} />
       </ThemeProvider>
