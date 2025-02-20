@@ -10,6 +10,9 @@
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "mongodb": "latest"
+    "mongodb": "latest",
+    "@mui/material": "latest",
+    "@emotion/react": "latest",
+    "@emotion/styled": "latest"
   }
 }
