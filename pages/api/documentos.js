@@ -1,18 +1,15 @@
-// pages/api/documentos.js
 import { MongoClient } from 'mongodb';
 
-const uri = process.env.MONGODB_URI;
+const uri = process.env.MONGODB_URI; // Asegúrate de que esta variable de entorno esté correctamente configurada
 let cachedClient = null;
 
 export default async function handler(req, res) {
   if (!cachedClient) {
-    cachedClient = new MongoClient(uri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    // Se elimina useNewUrlParser y useUnifiedTopology, ya que son obsoletos en el driver versión 4
+    cachedClient = new MongoClient(uri);
     await cachedClient.connect();
   }
-  const db = cachedClient.db(); // Usa la base de datos por defecto o la que indiques en la URI
+  const db = cachedClient.db(); // Usa la base de datos por defecto o la que especifiques en tu URI
   const collection = db.collection('documentos');
 
   if (req.method === 'GET') {
@@ -27,7 +24,9 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const result = await collection.insertOne(req.body);
-      return res.status(201).json(result.ops[0]);
+      // result.ops[0] es la forma de obtener el documento insertado en algunas versiones,
+      // si no funciona, puedes enviar el objeto result o consultar la documentación del driver
+      return res.status(201).json(result.ops ? result.ops[0] : result);
     } catch (error) {
       return res.status(400).json({ message: 'Error al crear documento', error });
     }
