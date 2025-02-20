@@ -23,17 +23,11 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     try {
-      // Insertamos el documento tal cual viene en el body
       const result = await collection.insertOne(req.body);
-      // Obtenemos el _id recién creado
       const insertedId = result.insertedId;
-      // Buscamos el documento completo para retornarlo y enviarlo por Pusher
       const newDoc = await collection.findOne({ _id: insertedId });
-
       // Dispara el evento "new-document" vía Pusher
-      await pusher.trigger('documents-channel', 'new-document', {
-        document: newDoc
-      });
+      await pusher.trigger('documents-channel', 'new-document', { document: newDoc });
       return res.status(201).json(newDoc);
     } catch (error) {
       return res.status(400).json({ message: 'Error al crear documento', error });
@@ -46,7 +40,6 @@ export default async function handler(req, res) {
       const { ObjectId } = require('mongodb');
       const _id = new ObjectId(id);
       const { responsable, atendido } = req.body;
-
       const updated = await collection.findOneAndUpdate(
         { _id },
         { $set: { responsable, atendido } },
@@ -55,11 +48,16 @@ export default async function handler(req, res) {
       if (!updated.value) {
         return res.status(404).json({ message: 'Documento no encontrado' });
       }
-
-      // Dispara el evento "update-document" vía Pusher
-      await pusher.trigger('documents-channel', 'update-document', {
-        document: updated.value
+      // Inserta en la colección "bitacora" el registro de cambio
+      const bitacoraCollection = db.collection('bitacora');
+      await bitacoraCollection.insertOne({
+        documentId: _id,
+        action: 'update',
+        changes: { responsable, atendido },
+        timestamp: new Date()
       });
+      // Dispara el evento "update-document" vía Pusher
+      await pusher.trigger('documents-channel', 'update-document', { document: updated.value });
       return res.status(200).json(updated.value);
     } catch (error) {
       return res.status(400).json({ message: 'Error al actualizar documento', error });
