@@ -24,33 +24,28 @@ import {
   InputAdornment
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import Pusher from 'pusher-js';
 
 export default function Home() {
-  // Estado para todos los documentos
+  // Estado para almacenar TODOS los documentos obtenidos de la API
   const [allDocs, setAllDocs] = useState([]);
-  // Formulario
+  // Estados para el formulario de creación
   const [nt, setNt] = useState('');
   const [fechaLlegada, setFechaLlegada] = useState('');
   const [urgente, setUrgente] = useState(false);
   const [atrasado, setAtrasado] = useState(false);
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
-
-  // Vista: "pendientes" o "historico"
+  // Estado para elegir la vista: "pendientes" (no atendidos) o "historico" (atendidos)
   const [viewType, setViewType] = useState('pendientes');
-  // Buscador
+  // Estado para el buscador (filtrar por NT)
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Alertas
+  // Estados para mostrar alertas (Snackbar) en la UI
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  // Para evitar re-alertar el mismo documento varias veces
   const [alertedDocs, setAlertedDocs] = useState([]);
 
-  // Parámetros de horas para alertas
-  const horas24 = 24;
-  const horasLegal = 72;
-
+  // Lista de responsables disponibles
   const responsables = [
     'Karina',
     'Jessica',
@@ -62,7 +57,11 @@ export default function Home() {
     'Christian'
   ];
 
-  // 1. Cargar documentos al montar y cada 10s
+  // Parámetros de tiempo para generar alertas (en horas)
+  const horas24 = 24;
+  const horasLegal = 72;
+
+  // Al montar la página y cada 10 segundos se llama a fetchDocumentos
   useEffect(() => {
     fetchDocumentos();
     const interval = setInterval(() => {
@@ -71,45 +70,21 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [viewType]);
 
-  // 2. Suscripción a Pusher en tiempo real
-  useEffect(() => {
-    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-    });
-    const channel = pusher.subscribe('documents-channel');
-
-    channel.bind('new-document', (data) => {
-      // Si el doc no está atendido y la vista es pendientes, agregamos
-      // pero en realidad podemos siempre agregar a allDocs, y el front filtra
-      setAllDocs((prev) => [...prev, data.document]);
-    });
-
-    channel.bind('update-document', (data) => {
-      // Actualizar en allDocs
-      setAllDocs((prev) =>
-        prev.map((doc) => (doc._id === data.document._id ? data.document : doc))
-      );
-    });
-
-    return () => {
-      channel.unbind_all();
-      channel.unsubscribe();
-    };
-  }, [viewType]);
-
-  // 3. Obtener documentos desde la API
+  // Función para obtener documentos de la API
   async function fetchDocumentos() {
     try {
+      // fetch hace una solicitud GET a /api/documentos
       const res = await fetch('/api/documentos');
       const data = await res.json();
       setAllDocs(data);
 
-      // Solo alertamos en la vista "pendientes"
+      // Si estamos en la vista "pendientes", se evalúan las condiciones de alerta
       if (viewType === 'pendientes') {
         const pendientes = data.filter(doc => !doc.atendido);
         let shouldAlert = false;
         const messages = [];
         pendientes.forEach(doc => {
+          // Si ya se alertó este documento, lo saltamos
           if (alertedDocs.includes(doc._id)) return;
           const fecha = new Date(doc.fechaLlegada);
           const ahora = new Date();
@@ -130,10 +105,7 @@ export default function Home() {
         if (shouldAlert && messages.length > 0) {
           setAlertMessage(messages.join(' | '));
           setAlertOpen(true);
-          const audio = document.getElementById('alert-audio');
-          if (audio) {
-            audio.play().catch(err => console.error('Error al reproducir audio:', err));
-          }
+          // Aquí se podría reproducir un sonido si se desea
           const nuevosAlertados = pendientes
             .filter(doc => !alertedDocs.includes(doc._id))
             .map(doc => doc._id);
@@ -147,47 +119,48 @@ export default function Home() {
     }
   }
 
-  // 4. Crear documento (POST)
+  // Función para crear un nuevo documento (envía una solicitud POST)
   async function crearDocumento(e) {
     e.preventDefault();
     const nuevoDoc = { nt, fechaLlegada, urgente, atrasado, responsable, atendido };
     try {
+      // fetch con método POST envía el nuevo documento a la API
       const res = await fetch('/api/documentos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nuevoDoc),
+        body: JSON.stringify(nuevoDoc)
       });
       await res.json();
-      // Limpiar formulario
+      // Limpia el formulario
       setNt('');
       setFechaLlegada('');
       setUrgente(false);
       setAtrasado(false);
       setResponsable('Karina');
       setAtendido(false);
-      // Se actualiza la lista (aunque con Pusher, se reflejará igual, pero es útil)
+      // Recarga la lista de documentos
       fetchDocumentos();
     } catch (error) {
       console.error('Error al crear documento:', error);
     }
   }
 
-  // 5. Actualizar documento (PUT)
+  // Función para actualizar un documento (envía una solicitud PUT)
   async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido }),
+        body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
       });
-      // Se recarga la lista. Pusher también disparará un evento "update-document"
+      // Recarga la lista de documentos
       fetchDocumentos();
     } catch (error) {
       console.error('Error al actualizar documento:', error);
     }
   }
 
-  // 6. Filtrar documentos según la vista y la búsqueda
+  // Filtrar documentos según la vista y el buscador
   const filteredDocs = allDocs.filter(doc => {
     const matchesView = viewType === 'pendientes' ? !doc.atendido : doc.atendido;
     const matchesSearch = doc.nt.toLowerCase().includes(searchQuery.toLowerCase());
@@ -196,10 +169,7 @@ export default function Home() {
 
   return (
     <>
-      {/* Audio para alertas */}
-      <audio id="alert-audio" src="/alert.mp3" preload="auto" />
-
-      {/* Snackbar de alertas */}
+      {/* Snackbar para alertas */}
       <Snackbar
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
@@ -207,7 +177,7 @@ export default function Home() {
         autoHideDuration={6000}
       />
 
-      {/* AppBar con logo */}
+      {/* AppBar con el logo */}
       <AppBar position="static">
         <Toolbar>
           <Box
@@ -223,16 +193,14 @@ export default function Home() {
       </AppBar>
 
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        {/* Vista: Pendientes o Histórico */}
+        {/* Controles para cambiar la vista: Pendientes vs Histórico */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5">Documentos</Typography>
           <ToggleButtonGroup
             color="primary"
             value={viewType}
             exclusive
-            onChange={(e, newView) => {
-              if (newView) setViewType(newView);
-            }}
+            onChange={(e, newView) => { if (newView) setViewType(newView); }}
           >
             <ToggleButton value="pendientes">Pendientes</ToggleButton>
             <ToggleButton value="historico">Histórico</ToggleButton>
@@ -308,7 +276,7 @@ export default function Home() {
           </Table>
         </Paper>
 
-        {/* Formulario para crear un nuevo documento */}
+        {/* Formulario para crear documentos */}
         <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom>
             Registrar Documento
