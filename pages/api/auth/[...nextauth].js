@@ -1,53 +1,51 @@
-// pages/api/auth/[...nextauth].js
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-
-// Definición de usuarios estáticos
-const USERS = [
-  { username: 'kh', password: '1234', name: 'Karina', email: 'kh@example.com', role: 'usuario' },
-  { username: 'jv', password: '1234', name: 'Jessica', email: 'jv@example.com', role: 'usuario' },
-  { username: 'wc', password: '1234', name: 'Walter', email: 'wc@example.com', role: 'usuario' },
-  { username: 'ls', password: '1234', name: 'Luis', email: 'ls@example.com', role: 'usuario' },
-  { username: 'dm', password: '1234', name: 'David', email: 'dm@example.com', role: 'usuario' },
-  { username: 'fy', password: '1234', name: 'Fabiola', email: 'fy@example.com', role: 'usuario' },
-  { username: 'rt', password: '1234', name: 'Romina', email: 'rt@example.com', role: 'usuario' },
-  { username: 'ac', password: '1234', name: 'Angel', email: 'ac@example.com', role: 'usuario' },
-  { username: 'cc', password: '1234', name: 'Christian', email: 'cc@example.com', role: 'usuario' },
-];
+import { MongoClient } from "mongodb";
+import bcrypt from "bcrypt";
 
 export default NextAuth({
   providers: [
     CredentialsProvider({
-      name: 'Credenciales',
+      name: "Credenciales",
       credentials: {
         username: { label: "Usuario", type: "text" },
-        password: { label: "Contraseña", type: "password" },
+        password: { label: "Contraseña", type: "password" }
       },
       async authorize(credentials, req) {
-        // Busca el usuario en el arreglo USERS
-        const user = USERS.find(
-          (u) =>
-            u.username === credentials?.username &&
-            u.password === credentials?.password
-        );
-        if (user) {
-          // Retorna un objeto con los datos del usuario
-          return {
-            id: user.username,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-          };
+        // Conectar a la base de datos
+        const client = await MongoClient.connect(process.env.MONGODB_URI);
+        const db = client.db();
+        const usersCollection = db.collection("users");
+
+        // Buscar el usuario por username
+        const userDoc = await usersCollection.findOne({ username: credentials.username });
+        if (!userDoc) {
+          client.close();
+          throw new Error("No existe el usuario");
         }
-        // Si las credenciales no coinciden, lanza un error
-        throw new Error('Credenciales inválidas');
+
+        // Comparar la contraseña ingresada con el hash almacenado
+        const isValid = await bcrypt.compare(credentials.password, userDoc.passwordHash);
+        client.close();
+
+        if (!isValid) {
+          throw new Error("Contraseña inválida");
+        }
+
+        // Retornar los datos del usuario para la sesión
+        return {
+          id: userDoc._id.toString(),
+          name: userDoc.name,
+          email: userDoc.email,
+          role: userDoc.role || "usuario"
+        };
       }
     })
   ],
-  // En producción es obligatorio definir un secreto para NextAuth
+  // Es importante definir NEXTAUTH_SECRET en Vercel para producción
   secret: process.env.NEXTAUTH_SECRET,
   session: {
-    strategy: 'jwt',
+    strategy: "jwt"
   },
   callbacks: {
     async session({ session, token }) {
@@ -59,6 +57,6 @@ export default NextAuth({
         token.role = user.role;
       }
       return token;
-    },
+    }
   }
 });
