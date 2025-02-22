@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSession, signOut } from "next-auth/react";
+import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/router';
 import {
   AppBar,
@@ -29,16 +29,12 @@ import SearchIcon from '@mui/icons-material/Search';
 import Pusher from 'pusher-js';
 
 export default function Home() {
-  // 1. Autenticación con NextAuth (Credenciales)
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  // Mientras se verifica la sesión, mostramos un mensaje
   if (status === 'loading') {
     return <div>Cargando...</div>;
   }
-
-  // Si no hay sesión, redirigimos a la página de login
   if (!session) {
     return (
       <Container sx={{ mt: 4 }}>
@@ -51,10 +47,9 @@ export default function Home() {
     );
   }
 
-  // Usuario autenticado (podemos usar name o email)
   const currentUser = session.user.name || session.user.email || 'Usuario';
 
-  // 2. Estados para almacenar documentos y manejar el formulario
+  // Estados
   const [allDocs, setAllDocs] = useState([]);
   const [nt, setNt] = useState('');
   const [anio, setAnio] = useState('');
@@ -64,33 +59,18 @@ export default function Home() {
   const [usuario, setUsuario] = useState(currentUser);
   const [atendido, setAtendido] = useState(false);
 
-  // Vista: "pendientes" (no atendidos) o "historico" (atendidos)
   const [viewType, setViewType] = useState('pendientes');
-  // Buscador por NT
   const [searchQuery, setSearchQuery] = useState('');
-
-  // 3. Alertas (Snackbar y sonido)
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
-  // Mapa para controlar la última alerta por documento (clave: doc._id, valor: timestamp)
   const [alertedDocsMap, setAlertedDocsMap] = useState({});
 
-  // Lista de usuarios (asignaciones)
-  const usuarios = [
-    'Karina',
-    'Jessica',
-    'Walter',
-    'Luis',
-    'Fabiola',
-    'Romina',
-    'David',
-    'Christian'
-  ];
+  const usuarios = ['Karina','Jessica','Walter','Luis','Fabiola','Romina','David','Angel','Christian'];
+  // Cambia a tus nombres cortos si gustas
 
-  // Intervalo de alerta: cada 1 hora (3600000 ms)
-  const alertaIntervalMs = 3600000;
+  const alertaIntervalMs = 3600000; // 1 hora
 
-  // 4. Cargar documentos al montar y cada 10s
+  // Cargar documentos
   useEffect(() => {
     fetchDocumentos();
     const interval = setInterval(() => {
@@ -99,7 +79,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [viewType]);
 
-  // 5. Suscribirse a Pusher para actualizaciones en tiempo real
+  // Suscribirse a Pusher
   useEffect(() => {
     const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
@@ -107,12 +87,10 @@ export default function Home() {
     const channel = pusher.subscribe('documents-channel');
 
     channel.bind('new-document', (data) => {
-      // Solo agregamos el documento si está asignado al usuario actual
       if (data.document.usuario === currentUser) {
         setAllDocs(prev => [...prev, data.document]);
       }
     });
-
     channel.bind('update-document', (data) => {
       setAllDocs(prev =>
         prev.map(doc => (doc._id === data.document._id ? data.document : doc))
@@ -125,14 +103,12 @@ export default function Home() {
     };
   }, [currentUser]);
 
-  // 6. Función para obtener documentos (GET)
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
       setAllDocs(data);
 
-      // En la vista pendientes, alertamos documentos asignados al usuario actual
       if (viewType === 'pendientes') {
         const pendientes = data.filter(doc => !doc.atendido && doc.usuario === currentUser);
         const now = new Date().getTime();
@@ -141,7 +117,6 @@ export default function Home() {
         const nuevosAlertas = { ...alertedDocsMap };
 
         pendientes.forEach(doc => {
-          // Si ya se alertó hace menos de 1 hora, no se alerta de nuevo
           if (nuevosAlertas[doc._id] && (now - nuevosAlertas[doc._id]) < alertaIntervalMs) return;
           messages.push(`Alerta: Documento ${doc.nt}/${doc.anio} asignado a ${doc.usuario} no atendido.`);
           nuevosAlertas[doc._id] = now;
@@ -165,7 +140,6 @@ export default function Home() {
     }
   }
 
-  // 7. Crear documento (POST)
   async function crearDocumento(e) {
     e.preventDefault();
     const nuevoDoc = { nt, anio, fechaLlegada, urgente, atrasado, usuario, atendido };
@@ -177,13 +151,11 @@ export default function Home() {
       });
       await res.json();
 
-      // Reproducir sonido de alerta inmediatamente
       const audio = document.getElementById('alert-audio');
       if (audio) {
         audio.play().catch(err => console.error('Error al reproducir audio:', err));
       }
 
-      // Limpiar formulario y asignar usuario actual
       setNt('');
       setAnio('');
       setFechaLlegada('');
@@ -197,7 +169,6 @@ export default function Home() {
     }
   }
 
-  // 8. Actualizar documento (PUT)
   async function actualizarDocumento(id, nuevoUsuario, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
@@ -211,7 +182,6 @@ export default function Home() {
     }
   }
 
-  // 9. Filtrar documentos según la vista y búsqueda
   const filteredDocs = allDocs.filter(doc => {
     const matchesView = viewType === 'pendientes' ? !doc.atendido : doc.atendido;
     const matchesSearch = doc.nt.toLowerCase().includes(searchQuery.toLowerCase());
@@ -220,10 +190,8 @@ export default function Home() {
 
   return (
     <>
-      {/* Audio para alertas */}
       <audio id="alert-audio" src="/alert.mp3" preload="auto" />
 
-      {/* Snackbar para notificaciones */}
       <Snackbar
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
@@ -231,10 +199,14 @@ export default function Home() {
         autoHideDuration={6000}
       />
 
-      {/* AppBar con logo y botón de Cerrar Sesión */}
       <AppBar position="static">
         <Toolbar>
-          <Box component="img" src="/vrac-logo.png" alt="VRAC Logo" sx={{ height: 50, mr: 2 }} />
+          <Box
+            component="img"
+            src="/vrac-logo.png"
+            alt="VRAC Logo"
+            sx={{ height: 50, mr: 2 }}
+          />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Sistema de Alertas VRAC
           </Typography>
@@ -249,7 +221,6 @@ export default function Home() {
           Bienvenido, {currentUser}
         </Typography>
 
-        {/* Vista: Pendientes vs Histórico */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5">Documentos</Typography>
           <ToggleButtonGroup
@@ -263,7 +234,6 @@ export default function Home() {
           </ToggleButtonGroup>
         </Box>
 
-        {/* Buscador por NT */}
         <TextField
           placeholder="Buscar por NT..."
           value={searchQuery}
@@ -275,11 +245,10 @@ export default function Home() {
               <InputAdornment position="start">
                 <SearchIcon />
               </InputAdornment>
-            )
+            ),
           }}
         />
 
-        {/* Tabla de documentos */}
         <Paper sx={{ mb: 4, p: 2 }}>
           <Table>
             <TableHead>
@@ -334,7 +303,6 @@ export default function Home() {
           </Table>
         </Paper>
 
-        {/* Formulario para crear documento */}
         <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom>
             Registrar Documento
