@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession, signIn, signOut } from "next-auth/react";
 import {
   AppBar,
   Toolbar,
@@ -28,12 +28,22 @@ import SearchIcon from '@mui/icons-material/Search';
 import Pusher from 'pusher-js';
 
 export default function Home() {
-  // Obtener la sesión actual (asegúrate de haber configurado NextAuth)
+  // Obtener la sesión actual
   const { data: session, status } = useSession();
   if (status === 'loading') return <div>Cargando...</div>;
-
-  // Suponemos que el campo "usuario" en la sesión es el que usamos para asignar documentos
-  const currentUser = session?.user?.name || '';
+  if (!session) {
+    return (
+      <Container sx={{ mt: 4 }}>
+        <Typography variant="h4">Acceso Restringido</Typography>
+        <Typography variant="body1">Debes iniciar sesión para usar el sistema.</Typography>
+        <Button variant="contained" color="primary" onClick={() => signIn()}>
+          Iniciar Sesión
+        </Button>
+      </Container>
+    );
+  }
+  // Usuario autenticado (puedes usar session.user.name o email)
+  const currentUser = session.user.name || session.user.email || 'Usuario';
 
   // Estados para almacenar documentos y para el formulario
   const [allDocs, setAllDocs] = useState([]);
@@ -42,20 +52,20 @@ export default function Home() {
   const [fechaLlegada, setFechaLlegada] = useState('');
   const [urgente, setUrgente] = useState(false);
   const [atrasado, setAtrasado] = useState(false);
-  const [usuario, setUsuario] = useState(currentUser); // Se inicializa con el usuario autenticado
+  const [usuario, setUsuario] = useState(currentUser);
   const [atendido, setAtendido] = useState(false);
 
-  // Vista: "pendientes" (no atendidos) o "historico" (atendidos)
+  // Estado para la vista: "pendientes" o "historico"
   const [viewType, setViewType] = useState('pendientes');
-  // Buscador (filtrar por NT)
+  // Estado para el buscador (filtrado por NT)
   const [searchQuery, setSearchQuery] = useState('');
-  // Estado para alertas en UI
+  // Estados para alertas en la UI
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   // Objeto para llevar registro de la última alerta por documento (clave: doc._id, valor: timestamp)
   const [alertedDocsMap, setAlertedDocsMap] = useState({});
 
-  // Lista de usuarios (para asignación). Aquí se puede incluir a todos los usuarios autorizados.
+  // Lista de usuarios disponibles (para asignación)
   const usuarios = [
     'Karina',
     'Jessica',
@@ -79,26 +89,23 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [viewType]);
 
-  // Efecto para suscribirse a Pusher y recibir actualizaciones en tiempo real
+  // Efecto para suscribirse a Pusher (actualizaciones en tiempo real)
   useEffect(() => {
     const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
     });
     const channel = pusher.subscribe('documents-channel');
-
     channel.bind('new-document', (data) => {
-      // Solo agregamos si el documento asignado es para el usuario actual
+      // Solo agregamos el documento si está asignado al usuario actual
       if (data.document.usuario === currentUser) {
         setAllDocs(prev => [...prev, data.document]);
       }
     });
-
     channel.bind('update-document', (data) => {
       setAllDocs(prev =>
         prev.map(doc => (doc._id === data.document._id ? data.document : doc))
       );
     });
-
     return () => {
       channel.unbind_all();
       channel.unsubscribe();
@@ -112,27 +119,24 @@ export default function Home() {
       const data = await res.json();
       setAllDocs(data);
 
-      // Solo para la vista "pendientes", se evaluarán las condiciones de alerta
+      // Solo en la vista "pendientes", evaluamos alertas para documentos asignados al usuario actual
       if (viewType === 'pendientes') {
         const pendientes = data.filter(doc => !doc.atendido && doc.usuario === currentUser);
         const now = new Date().getTime();
         let shouldAlert = false;
         const messages = [];
-        // Copia del objeto de alertas
         const nuevosAlertas = { ...alertedDocsMap };
 
         pendientes.forEach(doc => {
-          // Si ya se alertó este documento y no ha pasado una hora, se salta
           if (nuevosAlertas[doc._id] && (now - nuevosAlertas[doc._id]) < alertaIntervalMs) return;
           messages.push(`Alerta: Documento ${doc.nt}/${doc.anio} asignado a ${doc.usuario} no atendido.`);
-          nuevosAlertas[doc._id] = now; // Actualiza el timestamp para este documento
+          nuevosAlertas[doc._id] = now;
           shouldAlert = true;
         });
 
         if (shouldAlert && messages.length > 0) {
           setAlertMessage(messages.join(' | '));
           setAlertOpen(true);
-          // Reproducir sonido de alerta
           const audio = document.getElementById('alert-audio');
           if (audio) {
             audio.play().catch(err => console.error('Error al reproducir audio:', err));
@@ -158,18 +162,17 @@ export default function Home() {
         body: JSON.stringify(nuevoDoc)
       });
       await res.json();
-      // Reproduce el sonido de alerta inmediatamente al crear
       const audio = document.getElementById('alert-audio');
       if (audio) {
         audio.play().catch(err => console.error('Error al reproducir audio:', err));
       }
-      // Limpia el formulario
+      // Limpia el formulario y se reinicia el campo usuario al usuario actual
       setNt('');
       setAnio('');
       setFechaLlegada('');
       setUrgente(false);
       setAtrasado(false);
-      setUsuario(currentUser); // Se reinicia al usuario actual
+      setUsuario(currentUser);
       setAtendido(false);
       fetchDocumentos();
     } catch (error) {
@@ -191,7 +194,7 @@ export default function Home() {
     }
   }
 
-  // Filtrar documentos según la vista (pendientes o histórico) y el buscador
+  // Filtrar documentos según la vista y búsqueda
   const filteredDocs = allDocs.filter(doc => {
     const matchesView = viewType === 'pendientes' ? !doc.atendido : doc.atendido;
     const matchesSearch = doc.nt.toLowerCase().includes(searchQuery.toLowerCase());
@@ -200,10 +203,10 @@ export default function Home() {
 
   return (
     <>
-      {/* Elemento de audio para alertas */}
+      {/* Audio para alertas */}
       <audio id="alert-audio" src="/alert.mp3" preload="auto" />
 
-      {/* Snackbar para notificaciones */}
+      {/* Snackbar para alertas */}
       <Snackbar
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
@@ -211,18 +214,25 @@ export default function Home() {
         autoHideDuration={6000}
       />
 
-      {/* AppBar con el logo */}
+      {/* AppBar con logo y botón para cerrar sesión */}
       <AppBar position="static">
         <Toolbar>
           <Box component="img" src="/vrac-logo.png" alt="VRAC Logo" sx={{ height: 50, mr: 2 }} />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Sistema de Alertas VRAC
           </Typography>
+          <Button color="inherit" onClick={() => signOut()}>
+            Cerrar Sesión
+          </Button>
         </Toolbar>
       </AppBar>
 
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        {/* Controles para cambiar la vista: Pendientes vs. Histórico */}
+        <Typography variant="h5" sx={{ mb: 2 }}>
+          Bienvenido, {currentUser}
+        </Typography>
+
+        {/* Controles para cambiar la vista */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5">Documentos</Typography>
           <ToggleButtonGroup
@@ -248,7 +258,7 @@ export default function Home() {
               <InputAdornment position="start">
                 <SearchIcon />
               </InputAdornment>
-            ),
+            )
           }}
         />
 
@@ -378,7 +388,4 @@ export default function Home() {
             </Button>
           </Stack>
         </Box>
-      </Container>
-    </>
-  );
-}
+      </C
