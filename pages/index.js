@@ -28,9 +28,15 @@ import SearchIcon from '@mui/icons-material/Search';
 import Pusher from 'pusher-js';
 
 export default function Home() {
-  // Obtener la sesión actual de NextAuth
+  // 1. Autenticación con NextAuth
   const { data: session, status } = useSession();
-  if (status === 'loading') return <div>Cargando...</div>;
+
+  // Mientras se carga la sesión, mostramos un mensaje
+  if (status === 'loading') {
+    return <div>Cargando...</div>;
+  }
+
+  // Si no hay sesión, mostramos botón para iniciar sesión
   if (!session) {
     return (
       <Container sx={{ mt: 4 }}>
@@ -42,30 +48,32 @@ export default function Home() {
       </Container>
     );
   }
-  // Usuario autenticado (usamos name o email)
+
+  // Usuario autenticado (tomamos name o email)
   const currentUser = session.user.name || session.user.email || 'Usuario';
 
-  // Estados para documentos y formulario
+  // 2. Estados para almacenar documentos y manejar el formulario
   const [allDocs, setAllDocs] = useState([]);
   const [nt, setNt] = useState('');
   const [anio, setAnio] = useState('');
   const [fechaLlegada, setFechaLlegada] = useState('');
   const [urgente, setUrgente] = useState(false);
   const [atrasado, setAtrasado] = useState(false);
-  const [usuario, setUsuario] = useState(currentUser);
+  const [usuario, setUsuario] = useState(currentUser); // Por defecto, el usuario actual
   const [atendido, setAtendido] = useState(false);
 
-  // Estado para vista: "pendientes" o "historico"
+  // Vista: "pendientes" (no atendidos) o "historico" (atendidos)
   const [viewType, setViewType] = useState('pendientes');
   // Buscador por NT
   const [searchQuery, setSearchQuery] = useState('');
-  // Estados para alertas en UI
+
+  // 3. Alertas (Snackbar y sonido)
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
-  // Registro de la última alerta enviada por documento (clave: doc._id, valor: timestamp)
+  // Mapa para llevar registro de la última alerta de cada documento
   const [alertedDocsMap, setAlertedDocsMap] = useState({});
 
-  // Lista de usuarios disponibles para asignación (para el dropdown)
+  // Lista de usuarios para asignación (dropdown)
   const usuarios = [
     'Karina',
     'Jessica',
@@ -77,10 +85,10 @@ export default function Home() {
     'Christian'
   ];
 
-  // Parámetro de alerta: se dispara cada 1 hora (3600000 ms)
+  // Parámetro: se repite la alerta cada 1 hora (3600000 ms)
   const alertaIntervalMs = 3600000;
 
-  // Cargar documentos al montar la página y cada 10 segundos
+  // 4. Cargar documentos al montar y cada 10 segundos
   useEffect(() => {
     fetchDocumentos();
     const interval = setInterval(() => {
@@ -89,51 +97,60 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [viewType]);
 
-  // Suscribirse a Pusher para actualizaciones en tiempo real
+  // 5. Suscribirse a Pusher para actualizaciones en tiempo real
   useEffect(() => {
     const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
     });
     const channel = pusher.subscribe('documents-channel');
+
+    // Cuando se crea un documento nuevo, lo agregamos si corresponde al usuario actual
     channel.bind('new-document', (data) => {
-      // Agregar solo si el documento está asignado al usuario actual
       if (data.document.usuario === currentUser) {
         setAllDocs(prev => [...prev, data.document]);
       }
     });
+
+    // Cuando se actualiza un documento, actualizamos la lista
     channel.bind('update-document', (data) => {
       setAllDocs(prev =>
         prev.map(doc => (doc._id === data.document._id ? data.document : doc))
       );
     });
+
     return () => {
       channel.unbind_all();
       channel.unsubscribe();
     };
   }, [currentUser]);
 
-  // Función para obtener documentos desde la API
+  // 6. Función para obtener documentos (GET)
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
       setAllDocs(data);
-      // Solo en la vista pendientes, evaluamos alertas para documentos asignados al usuario actual
+
+      // Si estamos en la vista pendientes, generamos alertas solo para los documentos
+      // pendientes asignados al usuario actual
       if (viewType === 'pendientes') {
         const pendientes = data.filter(doc => !doc.atendido && doc.usuario === currentUser);
         const now = new Date().getTime();
         let shouldAlert = false;
         const messages = [];
         const nuevosAlertas = { ...alertedDocsMap };
+
         pendientes.forEach(doc => {
           if (nuevosAlertas[doc._id] && (now - nuevosAlertas[doc._id]) < alertaIntervalMs) return;
           messages.push(`Alerta: Documento ${doc.nt}/${doc.anio} asignado a ${doc.usuario} no atendido.`);
           nuevosAlertas[doc._id] = now;
           shouldAlert = true;
         });
+
         if (shouldAlert && messages.length > 0) {
           setAlertMessage(messages.join(' | '));
           setAlertOpen(true);
+          // Reproducir sonido
           const audio = document.getElementById('alert-audio');
           if (audio) {
             audio.play().catch(err => console.error('Error al reproducir audio:', err));
@@ -148,7 +165,7 @@ export default function Home() {
     }
   }
 
-  // Función para crear un nuevo documento (POST)
+  // 7. Función para crear documento (POST)
   async function crearDocumento(e) {
     e.preventDefault();
     const nuevoDoc = { nt, anio, fechaLlegada, urgente, atrasado, usuario, atendido };
@@ -159,17 +176,20 @@ export default function Home() {
         body: JSON.stringify(nuevoDoc)
       });
       await res.json();
+
+      // Reproduce sonido de alerta inmediatamente
       const audio = document.getElementById('alert-audio');
       if (audio) {
         audio.play().catch(err => console.error('Error al reproducir audio:', err));
       }
-      // Limpia el formulario y restablece el usuario al usuario actual
+
+      // Limpiar formulario
       setNt('');
       setAnio('');
       setFechaLlegada('');
       setUrgente(false);
       setAtrasado(false);
-      setUsuario(currentUser);
+      setUsuario(currentUser); // Se reinicia al usuario actual
       setAtendido(false);
       fetchDocumentos();
     } catch (error) {
@@ -177,7 +197,7 @@ export default function Home() {
     }
   }
 
-  // Función para actualizar un documento (PUT)
+  // 8. Función para actualizar un documento (PUT)
   async function actualizarDocumento(id, nuevoUsuario, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
@@ -191,7 +211,7 @@ export default function Home() {
     }
   }
 
-  // Filtrar documentos según la vista actual y el buscador por NT
+  // 9. Filtrar documentos según la vista y la búsqueda por NT
   const filteredDocs = allDocs.filter(doc => {
     const matchesView = viewType === 'pendientes' ? !doc.atendido : doc.atendido;
     const matchesSearch = doc.nt.toLowerCase().includes(searchQuery.toLowerCase());
@@ -203,7 +223,7 @@ export default function Home() {
       {/* Audio para alertas */}
       <audio id="alert-audio" src="/alert.mp3" preload="auto" />
 
-      {/* Snackbar para notificaciones */}
+      {/* Snackbar para alertas */}
       <Snackbar
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
@@ -211,15 +231,10 @@ export default function Home() {
         autoHideDuration={6000}
       />
 
-      {/* AppBar con logo y botón para cerrar sesión */}
+      {/* AppBar con el logo y el botón de Cerrar Sesión */}
       <AppBar position="static">
         <Toolbar>
-          <Box
-            component="img"
-            src="/vrac-logo.png"
-            alt="VRAC Logo"
-            sx={{ height: 50, mr: 2 }}
-          />
+          <Box component="img" src="/vrac-logo.png" alt="VRAC Logo" sx={{ height: 50, mr: 2 }} />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Sistema de Alertas VRAC
           </Typography>
@@ -234,7 +249,7 @@ export default function Home() {
           Bienvenido, {currentUser}
         </Typography>
 
-        {/* Controles para cambiar la vista: Pendientes vs Histórico */}
+        {/* Vista: Pendientes vs. Histórico */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5">Documentos</Typography>
           <ToggleButtonGroup
@@ -319,7 +334,7 @@ export default function Home() {
           </Table>
         </Paper>
 
-        {/* Formulario para crear documento */}
+        {/* Formulario para crear un nuevo documento */}
         <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom>
             Registrar Documento
