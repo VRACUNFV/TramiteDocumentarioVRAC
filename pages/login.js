@@ -11,17 +11,14 @@ export default function LoginPage() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    // Llamamos a NextAuth con el provider 'credentials'
     const res = await signIn('credentials', {
       username,
       password,
-      redirect: false, // Manejo manual de la redirección
+      redirect: false
     });
-
     if (res?.error) {
       setErrorMsg('Credenciales inválidas');
     } else {
-      // Si no hay error, vamos a la página principal
       router.push('/');
     }
   }
@@ -32,13 +29,11 @@ export default function LoginPage() {
         <Typography variant="h4" gutterBottom>
           Iniciar Sesión
         </Typography>
-
         {errorMsg && (
           <Typography color="error" sx={{ mb: 2 }}>
             {errorMsg}
           </Typography>
         )}
-
         <TextField
           label="Usuario"
           fullWidth
