@@ -19,6 +19,7 @@
     "pusher": "latest",
     "pusher-js": "latest",
     "jspdf": "latest",
-    "jspdf-autotable": "latest"
+    "jspdf-autotable": "latest",
+    "next-auth": "latest"
   }
 }
