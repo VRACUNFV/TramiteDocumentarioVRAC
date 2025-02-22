@@ -2,63 +2,63 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
+// Definición de usuarios estáticos
+const USERS = [
+  { username: 'kh', password: '1234', name: 'Karina', email: 'kh@example.com', role: 'usuario' },
+  { username: 'jv', password: '1234', name: 'Jessica', email: 'jv@example.com', role: 'usuario' },
+  { username: 'wc', password: '1234', name: 'Walter', email: 'wc@example.com', role: 'usuario' },
+  { username: 'ls', password: '1234', name: 'Luis', email: 'ls@example.com', role: 'usuario' },
+  { username: 'dm', password: '1234', name: 'David', email: 'dm@example.com', role: 'usuario' },
+  { username: 'fy', password: '1234', name: 'Fabiola', email: 'fy@example.com', role: 'usuario' },
+  { username: 'rt', password: '1234', name: 'Romina', email: 'rt@example.com', role: 'usuario' },
+  { username: 'ac', password: '1234', name: 'Angel', email: 'ac@example.com', role: 'usuario' },
+  { username: 'cc', password: '1234', name: 'Christian', email: 'cc@example.com', role: 'usuario' },
+];
+
 export default NextAuth({
-  // Desactiva el "pages" si quieres usar las rutas por defecto de NextAuth (o define tus propias páginas de login, error, etc.)
-  pages: {
-    signIn: '/login', // Redirige a /login cuando se requiera iniciar sesión
-  },
   providers: [
     CredentialsProvider({
-      name: 'Credentials',
+      name: 'Credenciales',
       credentials: {
         username: { label: "Usuario", type: "text" },
-        password: { label: "Contraseña", type: "password" }
+        password: { label: "Contraseña", type: "password" },
       },
       async authorize(credentials, req) {
-        // Aquí defines tu lógica para verificar credenciales.
-        // Ejemplo: un arreglo estático de usuarios o consultar en DB.
-        
-        const USERS = [
-          { username: 'Karina', password: '1234', name: 'Karina', email: 'karina@unfv.edu.pe' },
-          { username: 'Jessica', password: '5678', name: 'Jessica', email: 'jessica@unfv.edu.pe' },
-          // Agrega más usuarios...
-        ];
-
-        // Busca el usuario con username y password
-        const user = USERS.find(u => 
-          u.username === credentials?.username && 
-          u.password === credentials?.password
+        // Busca el usuario en el arreglo USERS
+        const user = USERS.find(
+          (u) =>
+            u.username === credentials?.username &&
+            u.password === credentials?.password
         );
-
         if (user) {
-          // Retorna un objeto con datos del usuario
+          // Retorna un objeto con los datos del usuario
           return {
             id: user.username,
             name: user.name,
             email: user.email,
+            role: user.role,
           };
         }
-        // Si no coincide, lanza error
+        // Si las credenciales no coinciden, lanza un error
         throw new Error('Credenciales inválidas');
       }
     })
   ],
-  // SECRET en producción
+  // En producción es obligatorio definir un secreto para NextAuth
   secret: process.env.NEXTAUTH_SECRET,
-
+  session: {
+    strategy: 'jwt',
+  },
   callbacks: {
     async session({ session, token }) {
-      // Asigna un "usuario" o "role" si quieres
       session.user.role = token.role || "usuario";
-      // session.user.name ya viene de authorize()
       return session;
     },
     async jwt({ token, user }) {
       if (user) {
-        // Al iniciar sesión, token se genera con datos del usuario
-        token.role = "usuario"; // o "admin", etc.
+        token.role = user.role;
       }
       return token;
-    }
+    },
   }
 });
