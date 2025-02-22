@@ -24,7 +24,7 @@ export default NextAuth({
           throw new Error("No existe el usuario");
         }
 
-        // Comparar la contraseña ingresada con el hash almacenado
+        // Comparar la contraseña ingresada con el hash en passwordHash
         const isValid = await bcrypt.compare(credentials.password, userDoc.passwordHash);
         client.close();
 
@@ -32,24 +32,26 @@ export default NextAuth({
           throw new Error("Contraseña inválida");
         }
 
-        // Retornar los datos del usuario para la sesión
+        // Retorna los datos del usuario para la sesión
         return {
           id: userDoc._id.toString(),
           name: userDoc.name,
           email: userDoc.email,
-          role: userDoc.role || "usuario"
+          role: userDoc.role
         };
       }
     })
   ],
-  // Es importante definir NEXTAUTH_SECRET en Vercel para producción
+  // Obligatorio en producción
   secret: process.env.NEXTAUTH_SECRET,
+
   session: {
     strategy: "jwt"
   },
+
   callbacks: {
     async session({ session, token }) {
-      session.user.role = token.role || "usuario";
+      session.user.role = token.role;
       return session;
     },
     async jwt({ token, user }) {
