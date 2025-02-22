@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import {
   AppBar,
   Toolbar,
@@ -27,28 +28,34 @@ import SearchIcon from '@mui/icons-material/Search';
 import Pusher from 'pusher-js';
 
 export default function Home() {
-  // Estado para almacenar TODOS los documentos obtenidos de la API
+  // Obtener la sesión actual (asegúrate de haber configurado NextAuth)
+  const { data: session, status } = useSession();
+  if (status === 'loading') return <div>Cargando...</div>;
+
+  // Suponemos que el campo "usuario" en la sesión es el que usamos para asignar documentos
+  const currentUser = session?.user?.name || '';
+
+  // Estados para almacenar documentos y para el formulario
   const [allDocs, setAllDocs] = useState([]);
-  // Estados para el formulario de creación
   const [nt, setNt] = useState('');
-  const [anio, setAnio] = useState(''); // Nuevo campo para el año
+  const [anio, setAnio] = useState('');
   const [fechaLlegada, setFechaLlegada] = useState('');
   const [urgente, setUrgente] = useState(false);
   const [atrasado, setAtrasado] = useState(false);
-  const [usuario, setUsuario] = useState('Karina'); // Renombrado de responsable a usuario
+  const [usuario, setUsuario] = useState(currentUser); // Se inicializa con el usuario autenticado
   const [atendido, setAtendido] = useState(false);
 
-  // Estado para cambiar la vista: "pendientes" (no atendidos) vs "historico" (atendidos)
+  // Vista: "pendientes" (no atendidos) o "historico" (atendidos)
   const [viewType, setViewType] = useState('pendientes');
-  // Estado para el buscador (filtrado por NT)
+  // Buscador (filtrar por NT)
   const [searchQuery, setSearchQuery] = useState('');
-  // Estado para las alertas (Snackbar)
+  // Estado para alertas en UI
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
-  // Para llevar registro de la última alerta enviada a cada documento (para no repetirla cada hora)
+  // Objeto para llevar registro de la última alerta por documento (clave: doc._id, valor: timestamp)
   const [alertedDocsMap, setAlertedDocsMap] = useState({});
 
-  // Lista de usuarios disponibles (anteriormente "responsables")
+  // Lista de usuarios (para asignación). Aquí se puede incluir a todos los usuarios autorizados.
   const usuarios = [
     'Karina',
     'Jessica',
@@ -60,10 +67,10 @@ export default function Home() {
     'Christian'
   ];
 
-  // Parámetros de tiempo para alertas: se enviará una alerta cada 1 hora (3600000 ms)
-  const alertaIntervalMs = 3600000;
+  // Parámetro para alertas: se enviará una alerta cada 1 hora (3600000 ms)
+  const alertaIntervalMs = 3600000; // 1 hora en ms
 
-  // Al montar la página y cada 10 segundos, se llama a fetchDocumentos
+  // Cargar documentos al montar la página y cada 10 segundos
   useEffect(() => {
     fetchDocumentos();
     const interval = setInterval(() => {
@@ -72,7 +79,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [viewType]);
 
-  // Efecto para suscribirse a Pusher (actualizaciones en tiempo real)
+  // Efecto para suscribirse a Pusher y recibir actualizaciones en tiempo real
   useEffect(() => {
     const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
@@ -80,7 +87,10 @@ export default function Home() {
     const channel = pusher.subscribe('documents-channel');
 
     channel.bind('new-document', (data) => {
-      setAllDocs(prev => [...prev, data.document]);
+      // Solo agregamos si el documento asignado es para el usuario actual
+      if (data.document.usuario === currentUser) {
+        setAllDocs(prev => [...prev, data.document]);
+      }
     });
 
     channel.bind('update-document', (data) => {
@@ -93,35 +103,36 @@ export default function Home() {
       channel.unbind_all();
       channel.unsubscribe();
     };
-  }, []);
+  }, [currentUser]);
 
-  // Función para obtener documentos de la API
+  // Función para obtener documentos desde la API
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
       setAllDocs(data);
 
-      // Si estamos en la vista "pendientes", evaluamos alertas
+      // Solo para la vista "pendientes", se evaluarán las condiciones de alerta
       if (viewType === 'pendientes') {
-        const pendientes = data.filter(doc => !doc.atendido);
+        const pendientes = data.filter(doc => !doc.atendido && doc.usuario === currentUser);
         const now = new Date().getTime();
         let shouldAlert = false;
         const messages = [];
+        // Copia del objeto de alertas
         const nuevosAlertas = { ...alertedDocsMap };
 
         pendientes.forEach(doc => {
-          // Si ya se alertó este documento y no ha pasado una hora, lo saltamos
-          if (!nuevosAlertas[doc._id] || (now - nuevosAlertas[doc._id]) >= alertaIntervalMs) {
-            messages.push(`Alerta: Documento ${doc.nt}/${doc.anio} asignado a ${doc.usuario} no atendido.`);
-            nuevosAlertas[doc._id] = now;
-            shouldAlert = true;
-          }
+          // Si ya se alertó este documento y no ha pasado una hora, se salta
+          if (nuevosAlertas[doc._id] && (now - nuevosAlertas[doc._id]) < alertaIntervalMs) return;
+          messages.push(`Alerta: Documento ${doc.nt}/${doc.anio} asignado a ${doc.usuario} no atendido.`);
+          nuevosAlertas[doc._id] = now; // Actualiza el timestamp para este documento
+          shouldAlert = true;
         });
 
         if (shouldAlert && messages.length > 0) {
           setAlertMessage(messages.join(' | '));
           setAlertOpen(true);
+          // Reproducir sonido de alerta
           const audio = document.getElementById('alert-audio');
           if (audio) {
             audio.play().catch(err => console.error('Error al reproducir audio:', err));
@@ -136,18 +147,10 @@ export default function Home() {
     }
   }
 
-  // Función para crear un nuevo documento (POST)
+  // Función para crear un documento (POST)
   async function crearDocumento(e) {
     e.preventDefault();
-    const nuevoDoc = {
-      nt,
-      anio, // Incluimos el año
-      fechaLlegada,
-      urgente,
-      atrasado,
-      usuario,
-      atendido
-    };
+    const nuevoDoc = { nt, anio, fechaLlegada, urgente, atrasado, usuario, atendido };
     try {
       const res = await fetch('/api/documentos', {
         method: 'POST',
@@ -155,18 +158,18 @@ export default function Home() {
         body: JSON.stringify(nuevoDoc)
       });
       await res.json();
-      // Reproduce sonido de alerta inmediatamente al crear
+      // Reproduce el sonido de alerta inmediatamente al crear
       const audio = document.getElementById('alert-audio');
       if (audio) {
         audio.play().catch(err => console.error('Error al reproducir audio:', err));
       }
-      // Limpiar formulario
+      // Limpia el formulario
       setNt('');
       setAnio('');
       setFechaLlegada('');
       setUrgente(false);
       setAtrasado(false);
-      setUsuario('Karina');
+      setUsuario(currentUser); // Se reinicia al usuario actual
       setAtendido(false);
       fetchDocumentos();
     } catch (error) {
@@ -188,7 +191,7 @@ export default function Home() {
     }
   }
 
-  // Filtrar documentos según la vista (pendientes o histórico) y búsqueda por NT
+  // Filtrar documentos según la vista (pendientes o histórico) y el buscador
   const filteredDocs = allDocs.filter(doc => {
     const matchesView = viewType === 'pendientes' ? !doc.atendido : doc.atendido;
     const matchesSearch = doc.nt.toLowerCase().includes(searchQuery.toLowerCase());
@@ -200,7 +203,7 @@ export default function Home() {
       {/* Elemento de audio para alertas */}
       <audio id="alert-audio" src="/alert.mp3" preload="auto" />
 
-      {/* Snackbar para mostrar alertas */}
+      {/* Snackbar para notificaciones */}
       <Snackbar
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
@@ -211,12 +214,7 @@ export default function Home() {
       {/* AppBar con el logo */}
       <AppBar position="static">
         <Toolbar>
-          <Box
-            component="img"
-            src="/vrac-logo.png"
-            alt="VRAC Logo"
-            sx={{ height: 50, mr: 2 }}
-          />
+          <Box component="img" src="/vrac-logo.png" alt="VRAC Logo" sx={{ height: 50, mr: 2 }} />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Sistema de Alertas VRAC
           </Typography>
@@ -224,7 +222,7 @@ export default function Home() {
       </AppBar>
 
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        {/* Controles para cambiar la vista: Pendientes vs Histórico */}
+        {/* Controles para cambiar la vista: Pendientes vs. Histórico */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5">Documentos</Typography>
           <ToggleButtonGroup
