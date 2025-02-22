@@ -1,23 +1,14 @@
-// theme.js
+// theme/theme.js
 import { createTheme } from '@mui/material/styles';
 
 const theme = createTheme({
   palette: {
     primary: {
-      // Guinda
       main: '#800000',
     },
     secondary: {
-      main: '#ffffff',
+      main: '#0066cc',
     },
-    background: {
-      // Fondo claro
-      default: '#f5f5f5',
-    },
-  },
-  typography: {
-    // Fuente Montserrat
-    fontFamily: '"Montserrat", "Helvetica", "Arial", sans-serif',
   },
 });
 
