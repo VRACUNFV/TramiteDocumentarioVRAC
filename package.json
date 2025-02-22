@@ -1,26 +1,25 @@
 {
-  "name": "sistema-alertas-vrac",
+  "name": "SistemaAlertasVRAC",
   "version": "1.0.0",
+  "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start"
   },
   "dependencies": {
-    "next": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "mongodb": "latest",
-    "@mui/material": "latest",
+    "@emotion/cache": "latest",
     "@emotion/react": "latest",
-    "@emotion/styled": "latest",
+    "@emotion/server": "latest",
+    "@mui/material": "latest",
     "@mui/icons-material": "latest",
-    "recharts": "latest",
+    "bcrypt": "latest",
+    "mongodb": "latest",
+    "next": "latest",
+    "next-auth": "latest",
     "pusher": "latest",
     "pusher-js": "latest",
-    "jspdf": "latest",
-    "jspdf-autotable": "latest",
-    "next-auth": "latest",
-    "bcrypt": "latest"
+    "react": "latest",
+    "react-dom": "latest"
   }
 }
