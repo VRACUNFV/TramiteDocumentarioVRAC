@@ -1,4 +1,3 @@
-// pages/login.js
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/router';
@@ -16,13 +15,13 @@ export default function LoginPage() {
     const res = await signIn('credentials', {
       username,
       password,
-      redirect: false, // Para manejar redirección manual
+      redirect: false, // Manejo manual de la redirección
     });
 
     if (res?.error) {
       setErrorMsg('Credenciales inválidas');
     } else {
-      // Si no hay error, redirigimos a la página principal o a donde quieras
+      // Si no hay error, vamos a la página principal
       router.push('/');
     }
   }
@@ -30,12 +29,16 @@ export default function LoginPage() {
   return (
     <Container maxWidth="sm" sx={{ mt: 4 }}>
       <Box component="form" onSubmit={handleSubmit}>
-        <Typography variant="h4" gutterBottom>Iniciar Sesión</Typography>
+        <Typography variant="h4" gutterBottom>
+          Iniciar Sesión
+        </Typography>
+
         {errorMsg && (
           <Typography color="error" sx={{ mb: 2 }}>
             {errorMsg}
           </Typography>
         )}
+
         <TextField
           label="Usuario"
           fullWidth
