@@ -27,27 +27,29 @@ import SearchIcon from '@mui/icons-material/Search';
 import Pusher from 'pusher-js';
 
 export default function Home() {
-  // Estado para almacenar TODOS los documentos
+  // Estado para almacenar TODOS los documentos obtenidos de la API
   const [allDocs, setAllDocs] = useState([]);
-  // Estados para el formulario
+  // Estados para el formulario de creación
   const [nt, setNt] = useState('');
+  const [anio, setAnio] = useState(''); // Nuevo campo para el año
   const [fechaLlegada, setFechaLlegada] = useState('');
   const [urgente, setUrgente] = useState(false);
   const [atrasado, setAtrasado] = useState(false);
-  const [responsable, setResponsable] = useState('Karina');
+  const [usuario, setUsuario] = useState('Karina'); // Renombrado de responsable a usuario
   const [atendido, setAtendido] = useState(false);
 
-  // Vista: "pendientes" o "historico"
+  // Estado para cambiar la vista: "pendientes" (no atendidos) vs "historico" (atendidos)
   const [viewType, setViewType] = useState('pendientes');
-  // Buscador
+  // Estado para el buscador (filtrado por NT)
   const [searchQuery, setSearchQuery] = useState('');
-  // Alertas: Snackbar
+  // Estado para las alertas (Snackbar)
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
-  // Para llevar registro de la última alerta de cada documento (clave: doc._id, valor: timestamp)
+  // Para llevar registro de la última alerta enviada a cada documento (para no repetirla cada hora)
   const [alertedDocsMap, setAlertedDocsMap] = useState({});
 
-  const responsables = [
+  // Lista de usuarios disponibles (anteriormente "responsables")
+  const usuarios = [
     'Karina',
     'Jessica',
     'Walter',
@@ -58,10 +60,10 @@ export default function Home() {
     'Christian'
   ];
 
-  // Parámetros de alerta: se enviará una alerta cada 1 hora (3600000 ms)
-  const alertaIntervalMs = 3600000; // 1 hora en milisegundos
+  // Parámetros de tiempo para alertas: se enviará una alerta cada 1 hora (3600000 ms)
+  const alertaIntervalMs = 3600000;
 
-  // Al montar la página y cada 10 segundos, se recargan los documentos
+  // Al montar la página y cada 10 segundos, se llama a fetchDocumentos
   useEffect(() => {
     fetchDocumentos();
     const interval = setInterval(() => {
@@ -70,7 +72,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [viewType]);
 
-  // Efecto de Pusher para actualizaciones en tiempo real
+  // Efecto para suscribirse a Pusher (actualizaciones en tiempo real)
   useEffect(() => {
     const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
@@ -78,16 +80,12 @@ export default function Home() {
     const channel = pusher.subscribe('documents-channel');
 
     channel.bind('new-document', (data) => {
-      // Agrega el documento nuevo a la lista
-      setAllDocs((prev) => [...prev, data.document]);
+      setAllDocs(prev => [...prev, data.document]);
     });
 
     channel.bind('update-document', (data) => {
-      // Actualiza la lista con el documento modificado
-      setAllDocs((prev) =>
-        prev.map((doc) =>
-          doc._id === data.document._id ? data.document : doc
-        )
+      setAllDocs(prev =>
+        prev.map(doc => (doc._id === data.document._id ? data.document : doc))
       );
     });
 
@@ -97,34 +95,33 @@ export default function Home() {
     };
   }, []);
 
-  // Función para obtener documentos desde la API
+  // Función para obtener documentos de la API
   async function fetchDocumentos() {
     try {
       const res = await fetch('/api/documentos');
       const data = await res.json();
       setAllDocs(data);
 
-      // Si estamos en la vista "pendientes", evaluamos alertas para cada documento pendiente
+      // Si estamos en la vista "pendientes", evaluamos alertas
       if (viewType === 'pendientes') {
         const pendientes = data.filter(doc => !doc.atendido);
         const now = new Date().getTime();
         let shouldAlert = false;
         const messages = [];
-        // Creamos una copia para actualizar el mapa de alertas
         const nuevosAlertas = { ...alertedDocsMap };
 
         pendientes.forEach(doc => {
-          // Si no existe registro o ha pasado al menos 1 hora desde la última alerta para este documento
+          // Si ya se alertó este documento y no ha pasado una hora, lo saltamos
           if (!nuevosAlertas[doc._id] || (now - nuevosAlertas[doc._id]) >= alertaIntervalMs) {
-            messages.push(`Alerta: Documento ${doc.nt} asignado a ${doc.responsable} no atendido.`);
-            nuevosAlertas[doc._id] = now; // Actualizamos la última alerta a "ahora"
+            messages.push(`Alerta: Documento ${doc.nt}/${doc.anio} asignado a ${doc.usuario} no atendido.`);
+            nuevosAlertas[doc._id] = now;
             shouldAlert = true;
           }
         });
+
         if (shouldAlert && messages.length > 0) {
           setAlertMessage(messages.join(' | '));
           setAlertOpen(true);
-          // Reproducir sonido de alerta
           const audio = document.getElementById('alert-audio');
           if (audio) {
             audio.play().catch(err => console.error('Error al reproducir audio:', err));
@@ -142,25 +139,34 @@ export default function Home() {
   // Función para crear un nuevo documento (POST)
   async function crearDocumento(e) {
     e.preventDefault();
-    const nuevoDoc = { nt, fechaLlegada, urgente, atrasado, responsable, atendido };
+    const nuevoDoc = {
+      nt,
+      anio, // Incluimos el año
+      fechaLlegada,
+      urgente,
+      atrasado,
+      usuario,
+      atendido
+    };
     try {
       const res = await fetch('/api/documentos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nuevoDoc)
       });
-      const data = await res.json();
-      // Reproduce sonido inmediatamente al crear
+      await res.json();
+      // Reproduce sonido de alerta inmediatamente al crear
       const audio = document.getElementById('alert-audio');
       if (audio) {
         audio.play().catch(err => console.error('Error al reproducir audio:', err));
       }
-      // Limpia el formulario
+      // Limpiar formulario
       setNt('');
+      setAnio('');
       setFechaLlegada('');
       setUrgente(false);
       setAtrasado(false);
-      setResponsable('Karina');
+      setUsuario('Karina');
       setAtendido(false);
       fetchDocumentos();
     } catch (error) {
@@ -169,12 +175,12 @@ export default function Home() {
   }
 
   // Función para actualizar un documento (PUT)
-  async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
+  async function actualizarDocumento(id, nuevoUsuario, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
+        body: JSON.stringify({ usuario: nuevoUsuario, atendido: nuevoAtendido })
       });
       fetchDocumentos();
     } catch (error) {
@@ -182,7 +188,7 @@ export default function Home() {
     }
   }
 
-  // Filtra los documentos según la vista actual y la búsqueda por NT
+  // Filtrar documentos según la vista (pendientes o histórico) y búsqueda por NT
   const filteredDocs = allDocs.filter(doc => {
     const matchesView = viewType === 'pendientes' ? !doc.atendido : doc.atendido;
     const matchesSearch = doc.nt.toLowerCase().includes(searchQuery.toLowerCase());
@@ -194,7 +200,7 @@ export default function Home() {
       {/* Elemento de audio para alertas */}
       <audio id="alert-audio" src="/alert.mp3" preload="auto" />
 
-      {/* Snackbar para notificaciones */}
+      {/* Snackbar para mostrar alertas */}
       <Snackbar
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
@@ -202,7 +208,7 @@ export default function Home() {
         autoHideDuration={6000}
       />
 
-      {/* AppBar con logo */}
+      {/* AppBar con el logo */}
       <AppBar position="static">
         <Toolbar>
           <Box
@@ -218,7 +224,7 @@ export default function Home() {
       </AppBar>
 
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        {/* Controles para cambiar la vista */}
+        {/* Controles para cambiar la vista: Pendientes vs Histórico */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5">Documentos</Typography>
           <ToggleButtonGroup
@@ -254,10 +260,11 @@ export default function Home() {
             <TableHead>
               <TableRow>
                 <TableCell>NT</TableCell>
+                <TableCell>Año</TableCell>
                 <TableCell>Fecha Llegada</TableCell>
                 <TableCell>Urgente</TableCell>
                 <TableCell>Atrasado</TableCell>
-                <TableCell>Responsable</TableCell>
+                <TableCell>Usuario</TableCell>
                 <TableCell>Atendido</TableCell>
               </TableRow>
             </TableHead>
@@ -265,6 +272,7 @@ export default function Home() {
               {filteredDocs.map(doc => (
                 <TableRow key={doc._id}>
                   <TableCell>{doc.nt}</TableCell>
+                  <TableCell>{doc.anio}</TableCell>
                   <TableCell>{doc.fechaLlegada}</TableCell>
                   <TableCell sx={{ backgroundColor: doc.urgente ? '#ffcccc' : 'transparent' }}>
                     {doc.urgente ? 'Sí' : 'No'}
@@ -274,15 +282,15 @@ export default function Home() {
                   </TableCell>
                   <TableCell>
                     <Select
-                      value={doc.responsable}
+                      value={doc.usuario}
                       onChange={(e) =>
                         actualizarDocumento(doc._id, e.target.value, doc.atendido)
                       }
                       size="small"
                     >
-                      {responsables.map(r => (
-                        <MenuItem key={r} value={r}>
-                          {r}
+                      {usuarios.map(u => (
+                        <MenuItem key={u} value={u}>
+                          {u}
                         </MenuItem>
                       ))}
                     </Select>
@@ -291,7 +299,7 @@ export default function Home() {
                     <Checkbox
                       checked={doc.atendido}
                       onChange={(e) =>
-                        actualizarDocumento(doc._id, doc.responsable, e.target.checked)
+                        actualizarDocumento(doc._id, doc.usuario, e.target.checked)
                       }
                     />
                   </TableCell>
@@ -301,7 +309,7 @@ export default function Home() {
           </Table>
         </Paper>
 
-        {/* Formulario para crear documento */}
+        {/* Formulario para crear un nuevo documento */}
         <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom>
             Registrar Documento
@@ -313,6 +321,13 @@ export default function Home() {
               required
               value={nt}
               onChange={(e) => setNt(e.target.value)}
+            />
+            <TextField
+              label="Año"
+              variant="outlined"
+              required
+              value={anio}
+              onChange={(e) => setAnio(e.target.value)}
             />
             <TextField
               label="Fecha de Llegada"
@@ -340,14 +355,14 @@ export default function Home() {
               }
               label="¿Atrasado?"
             />
-            <Typography>Responsable</Typography>
+            <Typography>Usuario</Typography>
             <Select
-              value={responsable}
-              onChange={(e) => setResponsable(e.target.value)}
+              value={usuario}
+              onChange={(e) => setUsuario(e.target.value)}
             >
-              {responsables.map(r => (
-                <MenuItem key={r} value={r}>
-                  {r}
+              {usuarios.map(u => (
+                <MenuItem key={u} value={u}>
+                  {u}
                 </MenuItem>
               ))}
             </Select>
