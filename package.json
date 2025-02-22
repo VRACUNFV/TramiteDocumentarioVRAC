@@ -20,6 +20,7 @@
     "pusher-js": "latest",
     "jspdf": "latest",
     "jspdf-autotable": "latest",
-    "next-auth": "latest"
+    "next-auth": "latest",
+    "bcrypt": "latest"
   }
 }
