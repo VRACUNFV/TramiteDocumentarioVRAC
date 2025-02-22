@@ -4,6 +4,16 @@ import { MongoClient } from "mongodb";
 import bcrypt from "bcrypt";
 
 export default NextAuth({
+  // Habilita modo debug para ver más información en los logs
+  debug: true,
+
+  // Necesario en producción
+  secret: process.env.NEXTAUTH_SECRET,
+
+  session: {
+    strategy: "jwt"
+  },
+
   providers: [
     CredentialsProvider({
       name: "Credenciales",
@@ -12,22 +22,37 @@ export default NextAuth({
         password: { label: "Contraseña", type: "password" }
       },
       async authorize(credentials, req) {
-        // Conectar a la base de datos
-        const client = await MongoClient.connect(process.env.MONGODB_URI);
+        // Imprime lo que se recibe del formulario
+        console.log("Authorize called with username:", credentials?.username);
+        console.log("Authorize called with password:", credentials?.password);
+
+        let client;
+        try {
+          // Conectar a la base de datos
+          client = await MongoClient.connect(process.env.MONGODB_URI);
+          console.log("MongoDB connected");
+        } catch (err) {
+          console.error("Error connecting to MongoDB:", err);
+          throw new Error("Error al conectar con la base de datos");
+        }
+
         const db = client.db();
         const usersCollection = db.collection("users");
 
-        // Buscar el usuario por username
+        // Busca el documento del usuario por "username"
         const userDoc = await usersCollection.findOne({ username: credentials.username });
+        console.log("userDoc found:", userDoc);
+
         if (!userDoc) {
           client.close();
           throw new Error("No existe el usuario");
         }
 
-        // Comparar la contraseña ingresada con el hash en passwordHash
+        // Compara la contraseña ingresada con el hash en "passwordHash"
         const isValid = await bcrypt.compare(credentials.password, userDoc.passwordHash);
-        client.close();
+        console.log("isValid?", isValid);
 
+        client.close();
         if (!isValid) {
           throw new Error("Contraseña inválida");
         }
@@ -37,21 +62,16 @@ export default NextAuth({
           id: userDoc._id.toString(),
           name: userDoc.name,
           email: userDoc.email,
-          role: userDoc.role
+          role: userDoc.role || "usuario"
         };
       }
     })
   ],
-  // Obligatorio en producción
-  secret: process.env.NEXTAUTH_SECRET,
-
-  session: {
-    strategy: "jwt"
-  },
 
   callbacks: {
     async session({ session, token }) {
-      session.user.role = token.role;
+      // session.user ya tiene name, email
+      session.user.role = token.role || "usuario";
       return session;
     },
     async jwt({ token, user }) {
