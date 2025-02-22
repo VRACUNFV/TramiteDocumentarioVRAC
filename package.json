@@ -20,6 +20,9 @@
     "pusher": "latest",
     "pusher-js": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "recharts": "latest",
+    "jspdf": "latest",
+    "jspdf-autotable": "latest"
   }
 }
