@@ -24,28 +24,29 @@ import {
   InputAdornment
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
+import Pusher from 'pusher-js';
 
 export default function Home() {
-  // Estado para almacenar TODOS los documentos obtenidos de la API
+  // Estado para almacenar TODOS los documentos
   const [allDocs, setAllDocs] = useState([]);
-  // Estados para el formulario de creación
+  // Estados para el formulario
   const [nt, setNt] = useState('');
   const [fechaLlegada, setFechaLlegada] = useState('');
   const [urgente, setUrgente] = useState(false);
   const [atrasado, setAtrasado] = useState(false);
   const [responsable, setResponsable] = useState('Karina');
   const [atendido, setAtendido] = useState(false);
-  // Estado para elegir la vista: "pendientes" (no atendidos) o "historico" (atendidos)
+
+  // Vista: "pendientes" o "historico"
   const [viewType, setViewType] = useState('pendientes');
-  // Estado para el buscador (filtrar por NT)
+  // Buscador
   const [searchQuery, setSearchQuery] = useState('');
-  // Estados para mostrar alertas (Snackbar) en la UI
+  // Alertas: Snackbar
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
-  // Para evitar re-alertar el mismo documento varias veces
-  const [alertedDocs, setAlertedDocs] = useState([]);
+  // Para llevar registro de la última alerta de cada documento (clave: doc._id, valor: timestamp)
+  const [alertedDocsMap, setAlertedDocsMap] = useState({});
 
-  // Lista de responsables disponibles
   const responsables = [
     'Karina',
     'Jessica',
@@ -57,11 +58,10 @@ export default function Home() {
     'Christian'
   ];
 
-  // Parámetros de tiempo para generar alertas (en horas)
-  const horas24 = 24;
-  const horasLegal = 72;
+  // Parámetros de alerta: se enviará una alerta cada 1 hora (3600000 ms)
+  const alertaIntervalMs = 3600000; // 1 hora en milisegundos
 
-  // Al montar la página y cada 10 segundos se llama a fetchDocumentos
+  // Al montar la página y cada 10 segundos, se recargan los documentos
   useEffect(() => {
     fetchDocumentos();
     const interval = setInterval(() => {
@@ -70,46 +70,66 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [viewType]);
 
-  // Función para obtener documentos de la API
+  // Efecto de Pusher para actualizaciones en tiempo real
+  useEffect(() => {
+    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
+      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+    });
+    const channel = pusher.subscribe('documents-channel');
+
+    channel.bind('new-document', (data) => {
+      // Agrega el documento nuevo a la lista
+      setAllDocs((prev) => [...prev, data.document]);
+    });
+
+    channel.bind('update-document', (data) => {
+      // Actualiza la lista con el documento modificado
+      setAllDocs((prev) =>
+        prev.map((doc) =>
+          doc._id === data.document._id ? data.document : doc
+        )
+      );
+    });
+
+    return () => {
+      channel.unbind_all();
+      channel.unsubscribe();
+    };
+  }, []);
+
+  // Función para obtener documentos desde la API
   async function fetchDocumentos() {
     try {
-      // fetch hace una solicitud GET a /api/documentos
       const res = await fetch('/api/documentos');
       const data = await res.json();
       setAllDocs(data);
 
-      // Si estamos en la vista "pendientes", se evalúan las condiciones de alerta
+      // Si estamos en la vista "pendientes", evaluamos alertas para cada documento pendiente
       if (viewType === 'pendientes') {
         const pendientes = data.filter(doc => !doc.atendido);
+        const now = new Date().getTime();
         let shouldAlert = false;
         const messages = [];
+        // Creamos una copia para actualizar el mapa de alertas
+        const nuevosAlertas = { ...alertedDocsMap };
+
         pendientes.forEach(doc => {
-          // Si ya se alertó este documento, lo saltamos
-          if (alertedDocs.includes(doc._id)) return;
-          const fecha = new Date(doc.fechaLlegada);
-          const ahora = new Date();
-          const diffHours = (ahora - fecha) / (1000 * 60 * 60);
-          if (doc.urgente) {
-            messages.push(`El documento ${doc.nt} es urgente.`);
-            shouldAlert = true;
-          }
-          if (diffHours > horas24) {
-            messages.push(`El documento ${doc.nt} lleva más de 24h sin atender.`);
-            shouldAlert = true;
-          }
-          if (diffHours > horasLegal) {
-            messages.push(`El documento ${doc.nt} excede el límite legal (${horasLegal}h).`);
+          // Si no existe registro o ha pasado al menos 1 hora desde la última alerta para este documento
+          if (!nuevosAlertas[doc._id] || (now - nuevosAlertas[doc._id]) >= alertaIntervalMs) {
+            messages.push(`Alerta: Documento ${doc.nt} asignado a ${doc.responsable} no atendido.`);
+            nuevosAlertas[doc._id] = now; // Actualizamos la última alerta a "ahora"
             shouldAlert = true;
           }
         });
         if (shouldAlert && messages.length > 0) {
           setAlertMessage(messages.join(' | '));
           setAlertOpen(true);
-          // Aquí se podría reproducir un sonido si se desea
-          const nuevosAlertados = pendientes
-            .filter(doc => !alertedDocs.includes(doc._id))
-            .map(doc => doc._id);
-          setAlertedDocs(prev => [...prev, ...nuevosAlertados]);
+          // Reproducir sonido de alerta
+          const audio = document.getElementById('alert-audio');
+          if (audio) {
+            audio.play().catch(err => console.error('Error al reproducir audio:', err));
+          }
+          setAlertedDocsMap(nuevosAlertas);
         } else {
           setAlertOpen(false);
         }
@@ -119,18 +139,22 @@ export default function Home() {
     }
   }
 
-  // Función para crear un nuevo documento (envía una solicitud POST)
+  // Función para crear un nuevo documento (POST)
   async function crearDocumento(e) {
     e.preventDefault();
     const nuevoDoc = { nt, fechaLlegada, urgente, atrasado, responsable, atendido };
     try {
-      // fetch con método POST envía el nuevo documento a la API
       const res = await fetch('/api/documentos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nuevoDoc)
       });
-      await res.json();
+      const data = await res.json();
+      // Reproduce sonido inmediatamente al crear
+      const audio = document.getElementById('alert-audio');
+      if (audio) {
+        audio.play().catch(err => console.error('Error al reproducir audio:', err));
+      }
       // Limpia el formulario
       setNt('');
       setFechaLlegada('');
@@ -138,14 +162,13 @@ export default function Home() {
       setAtrasado(false);
       setResponsable('Karina');
       setAtendido(false);
-      // Recarga la lista de documentos
       fetchDocumentos();
     } catch (error) {
       console.error('Error al crear documento:', error);
     }
   }
 
-  // Función para actualizar un documento (envía una solicitud PUT)
+  // Función para actualizar un documento (PUT)
   async function actualizarDocumento(id, nuevoResponsable, nuevoAtendido) {
     try {
       await fetch(`/api/documentos?id=${id}`, {
@@ -153,14 +176,13 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ responsable: nuevoResponsable, atendido: nuevoAtendido })
       });
-      // Recarga la lista de documentos
       fetchDocumentos();
     } catch (error) {
       console.error('Error al actualizar documento:', error);
     }
   }
 
-  // Filtrar documentos según la vista y el buscador
+  // Filtra los documentos según la vista actual y la búsqueda por NT
   const filteredDocs = allDocs.filter(doc => {
     const matchesView = viewType === 'pendientes' ? !doc.atendido : doc.atendido;
     const matchesSearch = doc.nt.toLowerCase().includes(searchQuery.toLowerCase());
@@ -169,7 +191,10 @@ export default function Home() {
 
   return (
     <>
-      {/* Snackbar para alertas */}
+      {/* Elemento de audio para alertas */}
+      <audio id="alert-audio" src="/alert.mp3" preload="auto" />
+
+      {/* Snackbar para notificaciones */}
       <Snackbar
         open={alertOpen}
         onClose={() => setAlertOpen(false)}
@@ -177,7 +202,7 @@ export default function Home() {
         autoHideDuration={6000}
       />
 
-      {/* AppBar con el logo */}
+      {/* AppBar con logo */}
       <AppBar position="static">
         <Toolbar>
           <Box
@@ -193,7 +218,7 @@ export default function Home() {
       </AppBar>
 
       <Container maxWidth="md" sx={{ mt: 4 }}>
-        {/* Controles para cambiar la vista: Pendientes vs Histórico */}
+        {/* Controles para cambiar la vista */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h5">Documentos</Typography>
           <ToggleButtonGroup
@@ -276,7 +301,7 @@ export default function Home() {
           </Table>
         </Paper>
 
-        {/* Formulario para crear documentos */}
+        {/* Formulario para crear documento */}
         <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
           <Typography variant="h5" gutterBottom>
             Registrar Documento
