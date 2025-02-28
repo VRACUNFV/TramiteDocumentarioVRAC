@@ -4,12 +4,12 @@ import { getMessaging, onMessage, getToken } from "firebase/messaging";
 
 // Copia la configuración de "Project Settings" → "General" → "Tus apps"
 const firebaseConfig = {
-  apiKey: "TU_API_KEY",
-  authDomain: "tu-proyecto.firebaseapp.com",
-  projectId: "tu-proyecto",
-  storageBucket: "tu-proyecto.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abcd1234efgh5678"
+  apiKey: "AIzaSyBk45KqAWvh52FzOEwKBuEsW8-dAD5V9os",
+  authDomain: "vrac-unfv.firebaseapp.com",
+  projectId: "vrac-unfv",
+  storageBucket: "vrac-unfv.firebasestorage.app",
+  messagingSenderId: "612784182198",
+  appId: "1:612784182198:web:e154ed27de26f5760ea717"
 };
 
 // Inicializa la app de Firebase
