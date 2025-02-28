@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sistema VRAC con Firebase</title>
+  <!-- Incluir scripts de Firebase desde el CDN -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-analytics-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-messaging-compat.js"></script>
+</head>
+<body>
+  <h1>Bienvenido a mi sitio estático con Firebase</h1>
+  <p>Este es un ejemplo de index.html desplegado en Vercel sin usar Next.js.</p>
+
+  <!-- Configuración e inicialización de Firebase -->
+  <script>
+    // Copia y pega tu configuración exacta de Firebase
+    const firebaseConfig = {
+      apiKey: "TU_API_KEY",
+      authDomain: "tu-proyecto.firebaseapp.com",
+      projectId: "tu-proyecto",
+      storageBucket: "tu-proyecto.appspot.com",
+      messagingSenderId: "123456789012",
+      appId: "1:123456789012:web:abcd1234efgh5678"
+    };
+
+    // Inicializar Firebase
+    firebase.initializeApp(firebaseConfig);
+    // Opcional: firebase.analytics();
+
+    // Si NO usarás notificaciones push, puedes parar aquí
+    // Si SÍ usarás notificaciones push:
+    const messaging = firebase.messaging();
+
+    // Registrar el service worker (si existe) para notificaciones push
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/firebase-messaging-sw.js")
+        .then((registration) => {
+          console.log("Service Worker registrado:", registration);
+        })
+        .catch((err) => console.error("Error al registrar SW:", err));
+    }
+
+    // Solicitar permiso de notificaciones
+    if ("Notification" in window) {
+      Notification.requestPermission().then((permission) => {
+        if (permission === "granted") {
+          console.log("Permiso de notificaciones concedido");
+          // Obtén token si lo necesitas
+          messaging.getToken({ vapidKey: "TU_VAPID_KEY" })
+            .then((currentToken) => {
+              if (currentToken) {
+                console.log("Token FCM:", currentToken);
+                // Envía este token a tu backend si quieres mandar notificaciones server->client
+              } else {
+                console.log("No se pudo obtener token de FCM.");
+              }
+            })
+            .catch((err) => console.error("Error al obtener token:", err));
+        }
+      });
+    }
+
+    // Manejo de mensajes en primer plano
+    messaging.onMessage((payload) => {
+      console.log("Mensaje en primer plano:", payload);
+      // Muestra notificación local o un alert
+      alert("Notificación recibida: " + JSON.stringify(payload));
+    });
+  </script>
+
+</body>
+</html>
