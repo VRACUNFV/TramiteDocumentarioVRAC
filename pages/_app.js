@@ -41,7 +41,7 @@ export default function MyApp(props) {
     Notification.requestPermission().then((permission) => {
       if (permission === "granted") {
         // 3. Obtener token de FCM usando tu VAPID KEY
-        getToken(messaging, { vapidKey: "TU_VAPID_KEY" })
+        getToken(messaging, { vapidKey: "BA4qpeyZDBlNQh1LCm034tSw1Tm5aV31KoFqDy0up-05K6nMXDxNyI8Ug1BtaESUL4okM7OjGZoLhWcaaooza6A" })
           .then((currentToken) => {
             if (currentToken) {
               console.log("Token FCM:", currentToken);
