@@ -24,6 +24,8 @@
     "recharts": "latest",
     "jspdf": "latest",
     "jspdf-autotable": "latest",
-    "xlsx": "latest"
+    "xlsx": "latest",
+    "socket.io": "latest",
+    "socket.io-client": "latest"
   }
 }
