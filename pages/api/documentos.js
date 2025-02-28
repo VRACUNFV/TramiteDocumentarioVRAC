@@ -12,18 +12,19 @@ export default async function handler(req, res) {
   const db = cachedClient.db();
   const collection = db.collection('documentos');
 
- if (req.method === 'GET') {
-  try {
-    const { limit = 50, skip = 0 } = req.query; // Valores por defecto
-    const documentos = await collection.find({})
-      .skip(parseInt(skip))
-      .limit(parseInt(limit))
-      .toArray();
-    return res.status(200).json(documentos);
-  } catch (error) {
-    return res.status(500).json({ message: 'Error al obtener documentos', error });
+  if (req.method === 'GET') {
+    try {
+      // Se leen los parámetros de paginación "limit" y "skip" con valores por defecto.
+      const { limit = 50, skip = 0 } = req.query;
+      const documentos = await collection.find({})
+        .skip(parseInt(skip))
+        .limit(parseInt(limit))
+        .toArray();
+      return res.status(200).json(documentos);
+    } catch (error) {
+      return res.status(500).json({ message: 'Error al obtener documentos', error });
+    }
   }
-}
 
   if (req.method === 'POST') {
     try {
