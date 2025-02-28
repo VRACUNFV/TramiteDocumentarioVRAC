@@ -23,6 +23,7 @@
     "react-dom": "latest",
     "recharts": "latest",
     "jspdf": "latest",
-    "jspdf-autotable": "latest"
+    "jspdf-autotable": "latest",
+    "xlsx": "latest"
   }
 }
