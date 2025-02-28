@@ -15,6 +15,7 @@
     "@mui/material": "latest",
     "@mui/icons-material": "latest",
     "bcrypt": "latest",
+    "firebase": "latest",
     "mongodb": "latest",
     "next": "latest",
     "next-auth": "latest",
