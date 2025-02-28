@@ -22,8 +22,9 @@ export default function MyApp(props) {
   const { Component, pageProps: { session, ...pageProps }, emotionCache = clientSideEmotionCache } = props;
 
   useEffect(() => {
+    // Asegurarse de que el siguiente código se ejecute solo en el cliente
     if (typeof window !== 'undefined') {
-      // Registrar el Service Worker para Firebase Messaging
+      // Registrar el service worker para Firebase Cloud Messaging
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
           .register('/firebase-messaging-sw.js')
@@ -32,22 +33,22 @@ export default function MyApp(props) {
           })
           .catch((err) => console.error('Error al registrar SW:', err));
       }
-      
-      // Usamos import dinámico para cargar firebase/messaging solo en el cliente
+
+      // Importación dinámica de Firebase Messaging (para que no se ejecute en el servidor)
       import('firebase/messaging').then((messagingModule) => {
         const { getMessaging, getToken, onMessage } = messagingModule;
         const messaging = getMessaging(app);
-        
+
         // Solicitar permiso de notificaciones
         if ("Notification" in window) {
           Notification.requestPermission().then((permission) => {
             if (permission === 'granted') {
-              // Usa tu VAPID KEY proporcionada
+              // Obtén el token FCM usando la VAPID KEY proporcionada
               getToken(messaging, { vapidKey: 'BA4qpeyZDBlNQh1LCm034tSw1Tm5aV31KoFqDy0up-05K6nMXDxNyI8Ug1BtaESUL4okM7OjGZoLhWcaaooza6A' })
                 .then((currentToken) => {
                   if (currentToken) {
                     console.log('Token FCM:', currentToken);
-                    // Puedes enviar este token a tu backend para notificaciones push
+                    // Aquí podrías enviar el token a tu backend para notificaciones push
                   } else {
                     console.log('No se pudo obtener token de FCM.');
                   }
@@ -56,11 +57,11 @@ export default function MyApp(props) {
             }
           });
         }
-        
+
         // Manejar mensajes en primer plano
         onMessage(messaging, (payload) => {
           console.log('Mensaje en primer plano:', payload);
-          // Aquí puedes, por ejemplo, mostrar un Snackbar o alert
+          // Aquí puedes mostrar un Snackbar o alert para notificar al usuario
         });
       });
     }
