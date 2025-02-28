@@ -49,7 +49,7 @@ export default function Home() {
 
   const currentUser = session.user.name || session.user.email || 'Usuario';
 
-  // Estados
+  // Estados de documentos y formulario
   const [allDocs, setAllDocs] = useState([]);
   const [nt, setNt] = useState('');
   const [anio, setAnio] = useState('');
@@ -59,27 +59,84 @@ export default function Home() {
   const [usuario, setUsuario] = useState(currentUser);
   const [atendido, setAtendido] = useState(false);
 
+  // Estado para vista y búsqueda
   const [viewType, setViewType] = useState('pendientes');
   const [searchQuery, setSearchQuery] = useState('');
   const [alertOpen, setAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [alertedDocsMap, setAlertedDocsMap] = useState({});
 
-  const usuarios = ['Karina','Jessica','Walter','Luis','Fabiola','Romina','David','Angel','Christian'];
-  // Cambia a tus nombres cortos si gustas
+  // Estado para paginación
+  const [page, setPage] = useState(1);
+  const limit = 50;
 
-  const alertaIntervalMs = 3600000; // 1 hora
+  // Configuraciones personalizables (cargadas desde localStorage)
+  const [settings, setSettings] = useState({
+    showColumns: {
+      nt: true,
+      anio: true,
+      fechaLlegada: true,
+      urgente: true,
+      atrasado: true,
+      usuario: true,
+      atendido: true,
+    },
+    alertInterval: 3600000
+  });
 
-  // Cargar documentos
+  useEffect(() => {
+    const stored = localStorage.getItem('settings');
+    if (stored) {
+      setSettings(JSON.parse(stored));
+    }
+  }, []);
+
+  async function fetchDocumentos() {
+    try {
+      const res = await fetch(`/api/documentos?limit=${limit}&skip=${(page - 1) * limit}`);
+      const data = await res.json();
+      setAllDocs(data);
+
+      if (viewType === 'pendientes') {
+        const pendientes = data.filter(doc => !doc.atendido && doc.usuario === currentUser);
+        const now = new Date().getTime();
+        let shouldAlert = false;
+        const messages = [];
+        const nuevosAlertas = { ...alertedDocsMap };
+
+        pendientes.forEach(doc => {
+          if (nuevosAlertas[doc._id] && (now - nuevosAlertas[doc._id]) < settings.alertInterval) return;
+          messages.push(`Alerta: Documento ${doc.nt}/${doc.anio} asignado a ${doc.usuario} no atendido.`);
+          nuevosAlertas[doc._id] = now;
+          shouldAlert = true;
+        });
+
+        if (shouldAlert && messages.length > 0) {
+          setAlertMessage(messages.join(' | '));
+          setAlertOpen(true);
+          const audio = document.getElementById('alert-audio');
+          if (audio) {
+            audio.play().catch(err => console.error('Error al reproducir audio:', err));
+          }
+          setAlertedDocsMap(nuevosAlertas);
+        } else {
+          setAlertOpen(false);
+        }
+      }
+    } catch (error) {
+      console.error('Error al obtener documentos:', error);
+    }
+  }
+
   useEffect(() => {
     fetchDocumentos();
     const interval = setInterval(() => {
       fetchDocumentos();
     }, 10000);
     return () => clearInterval(interval);
-  }, [viewType]);
+  }, [viewType, page]);
 
-  // Suscribirse a Pusher
+  // Suscribirse a Pusher para actualizaciones en tiempo real
   useEffect(() => {
     const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
@@ -102,43 +159,6 @@ export default function Home() {
       channel.unsubscribe();
     };
   }, [currentUser]);
-
-  async function fetchDocumentos() {
-    try {
-      const res = await fetch('/api/documentos');
-      const data = await res.json();
-      setAllDocs(data);
-
-      if (viewType === 'pendientes') {
-        const pendientes = data.filter(doc => !doc.atendido && doc.usuario === currentUser);
-        const now = new Date().getTime();
-        let shouldAlert = false;
-        const messages = [];
-        const nuevosAlertas = { ...alertedDocsMap };
-
-        pendientes.forEach(doc => {
-          if (nuevosAlertas[doc._id] && (now - nuevosAlertas[doc._id]) < alertaIntervalMs) return;
-          messages.push(`Alerta: Documento ${doc.nt}/${doc.anio} asignado a ${doc.usuario} no atendido.`);
-          nuevosAlertas[doc._id] = now;
-          shouldAlert = true;
-        });
-
-        if (shouldAlert && messages.length > 0) {
-          setAlertMessage(messages.join(' | '));
-          setAlertOpen(true);
-          const audio = document.getElementById('alert-audio');
-          if (audio) {
-            audio.play().catch(err => console.error('Error al reproducir audio:', err));
-          }
-          setAlertedDocsMap(nuevosAlertas);
-        } else {
-          setAlertOpen(false);
-        }
-      }
-    } catch (error) {
-      console.error('Error al obtener documentos:', error);
-    }
-  }
 
   async function crearDocumento(e) {
     e.preventDefault();
@@ -201,12 +221,7 @@ export default function Home() {
 
       <AppBar position="static">
         <Toolbar>
-          <Box
-            component="img"
-            src="/vrac-logo.png"
-            alt="VRAC Logo"
-            sx={{ height: 50, mr: 2 }}
-          />
+          <Box component="img" src="/vrac-logo.png" alt="VRAC Logo" sx={{ height: 50, mr: 2 }} />
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Sistema de Alertas VRAC
           </Typography>
@@ -303,75 +318,14 @@ export default function Home() {
           </Table>
         </Paper>
 
-        <Box component="form" onSubmit={crearDocumento} sx={{ mb: 4 }}>
-          <Typography variant="h5" gutterBottom>
-            Registrar Documento
-          </Typography>
-          <Stack spacing={2} sx={{ maxWidth: 400 }}>
-            <TextField
-              label="NT"
-              variant="outlined"
-              required
-              value={nt}
-              onChange={(e) => setNt(e.target.value)}
-            />
-            <TextField
-              label="Año"
-              variant="outlined"
-              required
-              value={anio}
-              onChange={(e) => setAnio(e.target.value)}
-            />
-            <TextField
-              label="Fecha de Llegada"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-              required
-              value={fechaLlegada}
-              onChange={(e) => setFechaLlegada(e.target.value)}
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={urgente}
-                  onChange={(e) => setUrgente(e.target.checked)}
-                />
-              }
-              label="¿Urgente?"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={atrasado}
-                  onChange={(e) => setAtrasado(e.target.checked)}
-                />
-              }
-              label="¿Atrasado?"
-            />
-            <Typography>Usuario</Typography>
-            <Select
-              value={usuario}
-              onChange={(e) => setUsuario(e.target.value)}
-            >
-              {usuarios.map(u => (
-                <MenuItem key={u} value={u}>
-                  {u}
-                </MenuItem>
-              ))}
-            </Select>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={atendido}
-                  onChange={(e) => setAtendido(e.target.checked)}
-                />
-              }
-              label="¿Atendido?"
-            />
-            <Button variant="contained" type="submit" color="primary">
-              CREAR
-            </Button>
-          </Stack>
+        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, mb: 4 }}>
+          <Button variant="outlined" onClick={() => setPage((prev) => Math.max(prev - 1, 1))}>
+            Anterior
+          </Button>
+          <Typography variant="body1">Página {page}</Typography>
+          <Button variant="outlined" onClick={() => setPage((prev) => prev + 1)}>
+            Siguiente
+          </Button>
         </Box>
       </Container>
     </>
