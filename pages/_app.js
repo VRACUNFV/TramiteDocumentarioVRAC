@@ -13,8 +13,10 @@ import { SessionProvider } from 'next-auth/react';
 import createEmotionCache from '../theme/createEmotionCache';
 import { CacheProvider } from '@emotion/react';
 
-// Importa Firebase Messaging y funciones desde firebase-config.js
-import { messaging, getToken, onMessage } from '../firebase-config';
+// Importa funciones de Firebase Messaging (no se importa "messaging" directamente)
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
+// Importa solo la instancia "app" desde firebase-config.js
+import { app } from '../firebase-config';
 
 const clientSideEmotionCache = createEmotionCache();
 
@@ -22,39 +24,44 @@ export default function MyApp(props) {
   const { Component, pageProps: { session, ...pageProps }, emotionCache = clientSideEmotionCache } = props;
 
   useEffect(() => {
-    // Asegurarse de que se ejecuta solo en el cliente
+    // Ejecuta solo en el cliente
     if (typeof window !== 'undefined') {
-      // Registrar el service worker para Firebase Cloud Messaging
+      // Registrar el Service Worker para Firebase Cloud Messaging
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
           .register('/firebase-messaging-sw.js')
-          .then(registration => {
+          .then((registration) => {
             console.log('Service Worker registrado:', registration);
           })
-          .catch(err => console.error('Error al registrar SW:', err));
+          .catch((err) => console.error('Error al registrar SW:', err));
       }
       
+      // Inicializar Firebase Messaging en el cliente
+      const messaging = getMessaging(app);
+      
       // Solicitar permiso para notificaciones
-      Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-          // Obtener el token FCM usando la VAPID KEY (reemplaza TU_VAPID_KEY con la clave real)
-          getToken(messaging, { vapidKey: 'BA4qpeyZDBlNQh1LCm034tSw1Tm5aV31KoFqDy0up-05K6nMXDxNyI8Ug1BtaESUL4okM7OjGZoLhWcaaooza6AY' })
-            .then(currentToken => {
-              if (currentToken) {
-                console.log('Token FCM:', currentToken);
-                // Puedes enviar este token a tu backend para gestionar notificaciones push
-              } else {
-                console.log('No se pudo obtener token de FCM.');
-              }
-            })
-            .catch(err => console.error('Error al obtener token FCM:', err));
-        }
-      });
+      if ("Notification" in window) {
+        Notification.requestPermission().then((permission) => {
+          if (permission === 'granted') {
+            // Obtener el token FCM usando la VAPID KEY (ya te proporcioné: BA4qpeyZDBlNQh1LCm034tSw1Tm5aV31KoFqDy0up-05K6nMXDxNyI8Ug1BtaESUL4okM7OjGZoLhWcaaooza6A)
+            getToken(messaging, { vapidKey: 'BA4qpeyZDBlNQh1LCm034tSw1Tm5aV31KoFqDy0up-05K6nMXDxNyI8Ug1BtaESUL4okM7OjGZoLhWcaaooza6A' })
+              .then((currentToken) => {
+                if (currentToken) {
+                  console.log('Token FCM:', currentToken);
+                  // Aquí podrías enviar este token a tu backend para notificaciones push
+                } else {
+                  console.log('No se pudo obtener token de FCM.');
+                }
+              })
+              .catch((err) => console.error('Error al obtener token FCM:', err));
+          }
+        });
+      }
       
       // Manejar mensajes en primer plano
-      onMessage(messaging, payload => {
+      onMessage(messaging, (payload) => {
         console.log('Mensaje en primer plano:', payload);
-        // Aquí puedes mostrar un Snackbar o una notificación en la UI
+        // Aquí puedes mostrar una notificación visual o un Snackbar
       });
     }
   }, []);
