@@ -13,52 +13,52 @@ import { SessionProvider } from 'next-auth/react';
 import createEmotionCache from '../theme/createEmotionCache';
 import { CacheProvider } from '@emotion/react';
 
-// IMPORTA la configuración de Firebase (asegúrate de crear "firebase-config.js")
+// Importa la configuración de Firebase (asegúrate de tener este archivo en la ruta indicada)
 import { messaging, getToken, onMessage } from '../firebase-config';
 
 const clientSideEmotionCache = createEmotionCache();
 
 export default function MyApp(props) {
-  const {
-    Component,
-    pageProps: { session, ...pageProps },
-    emotionCache = clientSideEmotionCache
-  } = props;
+  const { Component, pageProps: { session, ...pageProps }, emotionCache = clientSideEmotionCache } = props;
 
-  // Aquí añadimos el bloque para registrar SW y pedir permiso de notificaciones
   useEffect(() => {
-    // 1. Registrar el service worker (si existe "public/firebase-messaging-sw.js")
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker
-        .register("/firebase-messaging-sw.js")
-        .then((registration) => {
-          console.log("Service Worker registrado:", registration);
-        })
-        .catch((err) => console.error("Error al registrar SW:", err));
-    }
-
-    // 2. Pedir permiso de notificaciones
-    Notification.requestPermission().then((permission) => {
-      if (permission === "granted") {
-        // 3. Obtener token de FCM usando tu VAPID KEY
-        getToken(messaging, { vapidKey: "BA4qpeyZDBlNQh1LCm034tSw1Tm5aV31KoFqDy0up-05K6nMXDxNyI8Ug1BtaESUL4okM7OjGZoLhWcaaooza6A" })
-          .then((currentToken) => {
-            if (currentToken) {
-              console.log("Token FCM:", currentToken);
-              // Envía este token a tu backend si quieres notificaciones server->client
-            } else {
-              console.log("No se pudo obtener token de FCM.");
-            }
+    // Aseguramos que solo se ejecute en el cliente
+    if (typeof window !== 'undefined') {
+      // Registrar el service worker para Firebase Cloud Messaging
+      if (navigator.serviceWorker) {
+        navigator.serviceWorker
+          .register("/firebase-messaging-sw.js")
+          .then((registration) => {
+            console.log("Service Worker registrado:", registration);
           })
-          .catch((err) => console.error("Error al obtener token FCM:", err));
+          .catch((err) => console.error("Error al registrar SW:", err));
       }
-    });
 
-    // 4. Manejo de mensajes en primer plano
-    onMessage(messaging, (payload) => {
-      console.log("Mensaje en primer plano:", payload);
-      // Aquí puedes mostrar un alert, un Snackbar, etc.
-    });
+      // Solicitar permiso de notificaciones
+      if ("Notification" in window) {
+        Notification.requestPermission().then((permission) => {
+          if (permission === "granted") {
+            // Obtener el token FCM usando la VAPID KEY
+            getToken(messaging, { vapidKey: "TU_VAPID_KEY" })
+              .then((currentToken) => {
+                if (currentToken) {
+                  console.log("Token FCM:", currentToken);
+                  // Puedes enviar este token a tu backend para notificaciones push
+                } else {
+                  console.log("No se pudo obtener token de FCM.");
+                }
+              })
+              .catch((err) => console.error("Error al obtener token FCM:", err));
+          }
+        });
+      }
+
+      // Manejo de mensajes en primer plano
+      onMessage(messaging, (payload) => {
+        console.log("Mensaje en primer plano:", payload);
+        // Aquí puedes mostrar un alert o notificación en la UI
+      });
+    }
   }, []);
 
   return (
@@ -68,7 +68,6 @@ export default function MyApp(props) {
           <Head>
             <meta name="viewport" content="initial-scale=1, width=device-width" />
           </Head>
-          {/* CssBaseline elimina estilos por defecto y normaliza */}
           <CssBaseline />
           <Component {...pageProps} />
         </ThemeProvider>
