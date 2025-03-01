@@ -16,5 +16,5 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log("Mensaje en segundo plano:", payload);
-  // Opcional: self.registration.showNotification("Notificación", { body: "Texto de notificación" });
+  // Opcional: self.registration.showNotification("Título", { body: "Texto de notificación" });
 });
